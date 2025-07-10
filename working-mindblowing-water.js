@@ -114,36 +114,43 @@ class WorkingMindBlowingWater {
                     return wave * exp(-time * 2.0);
                 }
                 
-                // Globular morphing function
-                float globularMorph(vec2 pos, vec3 center, float radius, float shape) {
-                    float dist = distance(pos, center.xz);
-                    float normalizedDist = dist / radius;
+                // Dynamic surface morphing function
+                float surfaceMorph(vec2 pos, float mouseX, float mouseY, float strength) {
+                    // Calculate distance from mouse position
+                    float distFromMouse = distance(pos, vec2(mouseX, mouseY));
+                    float mouseInfluence = smoothstep(50.0, 0.0, distFromMouse) * strength;
                     
-                    // Different geometric shapes based on shape parameter
+                    // Different geometric surface morphs based on mouse position
                     float morph = 0.0;
                     
-                    if (shape < 0.2) {
-                        // Sphere
-                        morph = sqrt(max(0.0, 1.0 - normalizedDist * normalizedDist));
-                    } else if (shape < 0.4) {
-                        // Cube
-                        float cubeDist = max(abs(pos.x - center.x), abs(pos.y - center.z));
-                        morph = smoothstep(radius, 0.0, cubeDist);
-                    } else if (shape < 0.6) {
-                        // Octahedron
-                        float octDist = abs(pos.x - center.x) + abs(pos.y - center.z);
-                        morph = smoothstep(radius * 1.4, 0.0, octDist);
-                    } else if (shape < 0.8) {
-                        // Torus
-                        float torusDist = abs(dist - radius * 0.5);
-                        morph = smoothstep(radius * 0.3, 0.0, torusDist);
+                    // Use mouse position to determine shape type
+                    float shapeType = fract(mouseX * 10.0 + mouseY * 7.0 + time * 0.1);
+                    
+                    if (shapeType < 0.2) {
+                        // Spherical surface morph
+                        float sphereDist = distance(pos, vec2(mouseX, mouseY));
+                        morph = sqrt(max(0.0, 1.0 - sphereDist * sphereDist * 0.01)) * mouseInfluence;
+                    } else if (shapeType < 0.4) {
+                        // Cubic surface morph
+                        float cubeDist = max(abs(pos.x - mouseX), abs(pos.y - mouseY));
+                        morph = smoothstep(20.0, 0.0, cubeDist) * mouseInfluence;
+                    } else if (shapeType < 0.6) {
+                        // Toroidal surface morph
+                        float torusDist = abs(distance(pos, vec2(mouseX, mouseY)) - 10.0);
+                        morph = smoothstep(5.0, 0.0, torusDist) * mouseInfluence;
+                    } else if (shapeType < 0.8) {
+                        // Spiral surface morph
+                        float angle = atan(pos.y - mouseY, pos.x - mouseX);
+                        float spiralDist = distance(pos, vec2(mouseX, mouseY));
+                        morph = sin(angle * 8.0 + spiralDist * 0.5) * mouseInfluence * 0.5;
                     } else {
-                        // Dodecahedron-like
-                        float dodecDist = dist * (1.0 + 0.3 * sin(atan(pos.y - center.z, pos.x - center.x) * 5.0));
-                        morph = smoothstep(radius, 0.0, dodecDist);
+                        // Wave field surface morph
+                        float waveX = sin(pos.x * 0.1 + mouseX * 0.5) * cos(pos.y * 0.1 + mouseY * 0.5);
+                        float waveY = cos(pos.x * 0.15 + mouseX * 0.3) * sin(pos.y * 0.15 + mouseY * 0.3);
+                        morph = (waveX + waveY) * mouseInfluence * 0.3;
                     }
                     
-                    return morph * smoothstep(radius, 0.0, dist);
+                    return morph;
                 }
                 
                 void main() {
@@ -157,6 +164,10 @@ class WorkingMindBlowingWater {
                     
                     float elevation = wave1 * 0.8 + wave2 * 0.4 + wave3 * 0.2;
                     vElevation = elevation;
+                    
+                    // Dynamic surface morphing based on mouse position
+                    float surfaceMorphEffect = surfaceMorph(position.xz, mouseX, mouseY, mouseStrength);
+                    elevation += surfaceMorphEffect * 6.0;
                     
                     // Realistic mouse interaction with ripple effects
                     float distanceToMouse = distance(position.xz, vec2(mouseX, mouseY));
@@ -187,6 +198,38 @@ class WorkingMindBlowingWater {
                     
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
                 }
+                
+                // Globular morphing function (keeping for compatibility)
+                float globularMorph(vec2 pos, vec3 center, float radius, float shape) {
+                    float dist = distance(pos, center.xz);
+                    float normalizedDist = dist / radius;
+                    
+                    // Different geometric shapes based on shape parameter
+                    float morph = 0.0;
+                    
+                    if (shape < 0.2) {
+                        // Sphere
+                        morph = sqrt(max(0.0, 1.0 - normalizedDist * normalizedDist));
+                    } else if (shape < 0.4) {
+                        // Cube
+                        float cubeDist = max(abs(pos.x - center.x), abs(pos.y - center.z));
+                        morph = smoothstep(radius, 0.0, cubeDist);
+                    } else if (shape < 0.6) {
+                        // Octahedron
+                        float octDist = abs(pos.x - center.x) + abs(pos.y - center.z);
+                        morph = smoothstep(radius * 1.4, 0.0, octDist);
+                    } else if (shape < 0.8) {
+                        // Torus
+                        float torusDist = abs(dist - radius * 0.5);
+                        morph = smoothstep(radius * 0.3, 0.0, torusDist);
+                    } else {
+                        // Dodecahedron-like
+                        float dodecDist = dist * (1.0 + 0.3 * sin(atan(pos.y - center.z, pos.x - center.x) * 5.0));
+                        morph = smoothstep(radius, 0.0, dodecDist);
+                    }
+                    
+                    return morph * smoothstep(radius, 0.0, dist);
+                }
             `,
             fragmentShader: `
                 uniform float time;
@@ -196,6 +239,9 @@ class WorkingMindBlowingWater {
                 uniform float morphShape;
                 uniform vec3 morphCenter;
                 uniform float morphRadius;
+                uniform float mouseX;
+                uniform float mouseY;
+                uniform float mouseStrength;
                 
                 varying vec3 vPosition;
                 varying vec3 vNormal;
@@ -223,6 +269,28 @@ class WorkingMindBlowingWater {
                     // Subtle caustics
                     float caustic = sin(vPosition.x * 10.0 + time * 0.8) * cos(vPosition.z * 10.0 + time * 0.6);
                     color += caustic * 0.1;
+                    
+                    // Dynamic surface morphing color variation
+                    float distFromMouse = distance(vPosition.xz, vec2(mouseX, mouseY));
+                    if (distFromMouse < 50.0) {
+                        float morphIntensity = smoothstep(50.0, 0.0, distFromMouse) * mouseStrength;
+                        float shapeType = fract(mouseX * 10.0 + mouseY * 7.0 + time * 0.1);
+                        
+                        vec3 morphColor;
+                        if (shapeType < 0.2) {
+                            morphColor = vec3(0.0, 0.8, 1.0); // Blue for spheres
+                        } else if (shapeType < 0.4) {
+                            morphColor = vec3(0.0, 1.0, 0.8); // Cyan for cubes
+                        } else if (shapeType < 0.6) {
+                            morphColor = vec3(0.8, 0.0, 1.0); // Purple for torus
+                        } else if (shapeType < 0.8) {
+                            morphColor = vec3(1.0, 0.8, 0.0); // Yellow for spirals
+                        } else {
+                            morphColor = vec3(1.0, 0.0, 0.8); // Pink for wave fields
+                        }
+                        
+                        color = mix(color, morphColor, morphIntensity * 0.4);
+                    }
                     
                     // Morph shape color variation
                     float morphDist = distance(vPosition.xz, morphCenter.xz);
@@ -363,6 +431,11 @@ class WorkingMindBlowingWater {
             this.lastMousePosition.x = this.mouse.x;
             this.lastMousePosition.y = this.mouse.y;
             
+            // Update water shader uniforms for surface morphing
+            this.waterMesh.material.uniforms.mouseX.value = this.mouse.x * 50; // Scale to world coordinates
+            this.waterMesh.material.uniforms.mouseY.value = this.mouse.y * 50; // Scale to world coordinates
+            this.waterMesh.material.uniforms.mouseStrength.value = Math.min(2.0, Math.sqrt(this.mouseVelocity.x * this.mouseVelocity.x + this.mouseVelocity.y * this.mouseVelocity.y) * 10);
+            
             // Raycast for dramatic interaction
             this.raycaster.setFromCamera(this.mouse, this.camera);
             const intersects = this.raycaster.intersectObject(this.waterMesh);
@@ -381,30 +454,13 @@ class WorkingMindBlowingWater {
                     }
                 });
                 
-                // Main cursor ripple
-                const mainStrength = Math.min(2.0, Math.sqrt(this.mouseVelocity.x * this.mouseVelocity.x + this.mouseVelocity.y * this.mouseVelocity.y) * 5);
-                this.waterMesh.material.uniforms.mouseX.value = point.x;
-                this.waterMesh.material.uniforms.mouseY.value = point.z;
-                this.waterMesh.material.uniforms.mouseStrength.value = mainStrength;
-                this.waterMesh.material.uniforms.mouseVelocity.value = new THREE.Vector2(
-                    this.mouseVelocity.x * 15,
-                    this.mouseVelocity.y * 15
-                );
-                
                 // Create morphing shape effect
-                this.createMorphingShape(point.x, point.z, mainStrength * 0.3);
+                this.createMorphingShape(point.x, point.z, this.waterMesh.material.uniforms.mouseStrength.value * 0.3);
                 
                 // Create dramatic splash particles based on velocity
-                if (mainStrength > 0.5) {
-                    this.createSplashParticles(point.x, point.z, Math.floor(mainStrength * 5));
+                if (this.waterMesh.material.uniforms.mouseStrength.value > 0.5) {
+                    this.createSplashParticles(point.x, point.z, Math.floor(this.waterMesh.material.uniforms.mouseStrength.value * 5));
                 }
-                
-                // Smooth decay
-                gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
-                    value: 0,
-                    duration: 2.0,
-                    ease: "power3.out"
-                });
             }
             
             lastCursorTime = currentTime;
@@ -415,14 +471,16 @@ class WorkingMindBlowingWater {
             this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
             
+            // Create dramatic surface morphing effect
+            this.waterMesh.material.uniforms.mouseX.value = this.mouse.x * 50;
+            this.waterMesh.material.uniforms.mouseY.value = this.mouse.y * 50;
+            this.waterMesh.material.uniforms.mouseStrength.value = 8.0; // Very strong click effect
+            
             this.raycaster.setFromCamera(this.mouse, this.camera);
             const intersects = this.raycaster.intersectObject(this.waterMesh);
             
             if (intersects.length > 0) {
                 const point = intersects[0].point;
-                this.waterMesh.material.uniforms.mouseX.value = point.x;
-                this.waterMesh.material.uniforms.mouseY.value = point.z;
-                this.waterMesh.material.uniforms.mouseStrength.value = 5.0; // Stronger click effect
                 
                 // Create dramatic morphing shape
                 this.createDramaticMorphingShape(point.x, point.z);
@@ -430,9 +488,10 @@ class WorkingMindBlowingWater {
                 // Create dramatic splash
                 this.createDramaticSplash(point.x, point.z);
                 
+                // Gradually reduce the surface morphing effect
                 gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
                     value: 0,
-                    duration: 4.0,
+                    duration: 5.0,
                     ease: "power4.out"
                 });
             }
