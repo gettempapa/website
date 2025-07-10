@@ -19,12 +19,5 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
-  ],
-  "functions": {},
-  "env": {},
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
-  }
+  ]
 } 
