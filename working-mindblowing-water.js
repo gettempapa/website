@@ -201,18 +201,18 @@ class WorkingMindBlowingWater {
         this.waterMesh.receiveShadow = true;
         this.scene.add(this.waterMesh);
         
-        console.log('✅ Dramatic water created with visible effects');
+        console.log('✅ Dramatic water created');
     }
 
     createParticleSystem() {
         console.log('✨ Creating dramatic particle system...');
         
-        // Create dramatic particles
-        for (let i = 0; i < 500; i++) {
+        // Create ambient particles
+        for (let i = 0; i < 50; i++) {
             const particle = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1, 8, 8),
+                new THREE.SphereGeometry(0.02, 4, 4),
                 new THREE.MeshBasicMaterial({
-                    color: new THREE.Color(0x66ccff),
+                    color: new THREE.Color(0x00ffff),
                     transparent: true,
                     opacity: 0.6
                 })
@@ -220,52 +220,48 @@ class WorkingMindBlowingWater {
             
             particle.position.set(
                 (Math.random() - 0.5) * 80,
-                Math.random() * 20,
+                Math.random() * 20 + 5,
                 (Math.random() - 0.5) * 80
             );
             
             particle.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                Math.random() * 2,
-                (Math.random() - 0.5) * 2
+                (Math.random() - 0.5) * 0.5,
+                (Math.random() - 0.5) * 0.3,
+                (Math.random() - 0.5) * 0.5
             );
             
             this.particles.push(particle);
             this.scene.add(particle);
         }
         
-        console.log('✅ Particle system created');
+        console.log('✅ Particle system ready');
     }
 
     createLighting() {
-        console.log('💡 Creating dramatic lighting...');
+        console.log('💡 Setting up dramatic lighting...');
         
         // Ambient light
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
         this.scene.add(ambientLight);
-
+        
         // Dramatic directional light
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
-        directionalLight.position.set(50, 100, 50);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(10, 20, 10);
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
         this.scene.add(directionalLight);
-
-        // Colored point lights for dramatic effect
-        const pointLight1 = new THREE.PointLight(0x00ffff, 1.0, 100);
-        pointLight1.position.set(-30, 20, -30);
-        this.scene.add(pointLight1);
-
-        const pointLight2 = new THREE.PointLight(0xff00ff, 0.8, 80);
-        pointLight2.position.set(30, 15, 30);
-        this.scene.add(pointLight2);
-
-        const pointLight3 = new THREE.PointLight(0xffff00, 0.6, 60);
-        pointLight3.position.set(0, 10, -40);
-        this.scene.add(pointLight3);
         
-        console.log('✅ Dramatic lighting created');
+        // Dramatic point lights
+        const light1 = new THREE.PointLight(0x0066ff, 1.0, 50);
+        light1.position.set(-20, 15, -20);
+        this.scene.add(light1);
+        
+        const light2 = new THREE.PointLight(0x00ffff, 0.8, 40);
+        light2.position.set(20, 10, 20);
+        this.scene.add(light2);
+        
+        console.log('✅ Dramatic lighting setup complete');
     }
 
     addEventListeners() {
@@ -465,6 +461,4 @@ function initWorkingMindBlowingWater() {
 }
 
 // Start the simulation
-document.addEventListener('DOMContentLoaded', initWorkingMindBlowingWater);
-
-export default WorkingMindBlowingWater; 
+document.addEventListener('DOMContentLoaded', initWorkingMindBlowingWater); 

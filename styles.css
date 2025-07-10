@@ -16,13 +16,24 @@ body {
     position: relative;
 }
 
+/* Ensure water simulation canvas is visible and interactive */
+canvas {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 0 !important;
+    pointer-events: auto !important;
+}
+
 /* Terminal Container */
 .terminal-container {
     min-height: 100vh;
     background: transparent;
     position: relative;
     overflow: hidden;
-    z-index: 10;
+    z-index: 100;
     pointer-events: none;
 }
 
