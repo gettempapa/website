@@ -81,6 +81,9 @@ class WorkingMindBlowingWater {
                 uniform float mouseY;
                 uniform float mouseStrength;
                 uniform vec2 mouseVelocity;
+                uniform float morphShape;
+                uniform vec3 morphCenter;
+                uniform float morphRadius;
                 
                 varying vec3 vPosition;
                 varying vec3 vNormal;
@@ -111,16 +114,48 @@ class WorkingMindBlowingWater {
                     return wave * exp(-time * 2.0);
                 }
                 
+                // Globular morphing function
+                float globularMorph(vec2 pos, vec3 center, float radius, float shape) {
+                    float dist = distance(pos, center.xz);
+                    float normalizedDist = dist / radius;
+                    
+                    // Different geometric shapes based on shape parameter
+                    float morph = 0.0;
+                    
+                    if (shape < 0.2) {
+                        // Sphere
+                        morph = sqrt(max(0.0, 1.0 - normalizedDist * normalizedDist));
+                    } else if (shape < 0.4) {
+                        // Cube
+                        float cubeDist = max(abs(pos.x - center.x), abs(pos.y - center.z));
+                        morph = smoothstep(radius, 0.0, cubeDist);
+                    } else if (shape < 0.6) {
+                        // Octahedron
+                        float octDist = abs(pos.x - center.x) + abs(pos.y - center.z);
+                        morph = smoothstep(radius * 1.4, 0.0, octDist);
+                    } else if (shape < 0.8) {
+                        // Torus
+                        float torusDist = abs(dist - radius * 0.5);
+                        morph = smoothstep(radius * 0.3, 0.0, torusDist);
+                    } else {
+                        // Dodecahedron-like
+                        float dodecDist = dist * (1.0 + 0.3 * sin(atan(pos.y - center.z, pos.x - center.x) * 5.0));
+                        morph = smoothstep(radius, 0.0, dodecDist);
+                    }
+                    
+                    return morph * smoothstep(radius, 0.0, dist);
+                }
+                
                 void main() {
                     vUv = uv;
                     vPosition = position;
                     
-                    // Create gentle waves
-                    float wave1 = fbm(vec2(position.x * 0.03 + time * 0.3, position.z * 0.03 + time * 0.2));
-                    float wave2 = fbm(vec2(position.x * 0.06 + time * 0.15, position.z * 0.06 + time * 0.25));
-                    float wave3 = sin(position.x * 0.3 + time * 1.2) * cos(position.z * 0.3 + time * 0.9);
+                    // Create very gentle ambient waves
+                    float wave1 = fbm(vec2(position.x * 0.01 + time * 0.1, position.z * 0.01 + time * 0.08));
+                    float wave2 = fbm(vec2(position.x * 0.02 + time * 0.05, position.z * 0.02 + time * 0.12));
+                    float wave3 = sin(position.x * 0.1 + time * 0.4) * cos(position.z * 0.1 + time * 0.3);
                     
-                    float elevation = wave1 * 1.5 + wave2 * 0.8 + wave3 * 0.4;
+                    float elevation = wave1 * 0.8 + wave2 * 0.4 + wave3 * 0.2;
                     vElevation = elevation;
                     
                     // Realistic mouse interaction with ripple effects
@@ -135,15 +170,19 @@ class WorkingMindBlowingWater {
                     float velocityEffect = length(mouseVelocity) * smoothstep(25.0, 0.0, distanceToMouse) * 0.5;
                     elevation += velocityEffect;
                     
+                    // Add globular morphing shapes
+                    float morphEffect = globularMorph(position.xz, morphCenter, morphRadius, morphShape);
+                    elevation += morphEffect * 8.0 * mouseStrength;
+                    
                     // Update position
                     vec3 newPosition = position;
                     newPosition.y += elevation;
                     
                     // Calculate normal for realistic lighting
-                    float ddx = fbm(vec2((position.x + 1.0) * 0.03 + time * 0.3, position.z * 0.03 + time * 0.2)) - wave1;
-                    float ddz = fbm(vec2(position.x * 0.03 + time * 0.3, (position.z + 1.0) * 0.03 + time * 0.2)) - wave1;
+                    float ddx = fbm(vec2((position.x + 1.0) * 0.01 + time * 0.1, position.z * 0.01 + time * 0.08)) - wave1;
+                    float ddz = fbm(vec2(position.x * 0.01 + time * 0.1, (position.z + 1.0) * 0.01 + time * 0.08)) - wave1;
                     
-                    vec3 normal = normalize(vec3(-ddx * 1.5, 1.0, -ddz * 1.5));
+                    vec3 normal = normalize(vec3(-ddx * 1.0, 1.0, -ddz * 1.0));
                     vNormal = normal;
                     
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
@@ -154,6 +193,9 @@ class WorkingMindBlowingWater {
                 uniform vec3 waterColor;
                 uniform vec3 foamColor;
                 uniform float transparency;
+                uniform float morphShape;
+                uniform vec3 morphCenter;
+                uniform float morphRadius;
                 
                 varying vec3 vPosition;
                 varying vec3 vNormal;
@@ -182,6 +224,14 @@ class WorkingMindBlowingWater {
                     float caustic = sin(vPosition.x * 10.0 + time * 0.8) * cos(vPosition.z * 10.0 + time * 0.6);
                     color += caustic * 0.1;
                     
+                    // Morph shape color variation
+                    float morphDist = distance(vPosition.xz, morphCenter.xz);
+                    if (morphDist < morphRadius) {
+                        float morphIntensity = smoothstep(morphRadius, 0.0, morphDist);
+                        vec3 morphColor = mix(vec3(0.0, 0.8, 1.0), vec3(0.0, 1.0, 0.8), morphShape);
+                        color = mix(color, morphColor, morphIntensity * 0.3);
+                    }
+                    
                     // Gentle glow
                     color += vec3(0.05, 0.15, 0.25) * 0.2;
                     
@@ -202,7 +252,10 @@ class WorkingMindBlowingWater {
                 mouseVelocity: { value: new THREE.Vector2() },
                 waterColor: { value: new THREE.Color(0x0066cc) },
                 foamColor: { value: new THREE.Color(0x66ccff) },
-                transparency: { value: 0.9 }
+                transparency: { value: 0.9 },
+                morphShape: { value: 0.0 },
+                morphCenter: { value: new THREE.Vector3(0, 0, 0) },
+                morphRadius: { value: 0.0 }
             },
             transparent: true,
             side: THREE.DoubleSide
@@ -282,6 +335,7 @@ class WorkingMindBlowingWater {
         // Track cursor position for continuous ripple effects
         let lastCursorTime = 0;
         let cursorTrail = [];
+        let morphShapeIndex = 0;
         
         // Dramatic mouse tracking with enhanced ripple effects
         document.addEventListener('mousemove', (event) => {
@@ -337,6 +391,9 @@ class WorkingMindBlowingWater {
                     this.mouseVelocity.y * 15
                 );
                 
+                // Create morphing shape effect
+                this.createMorphingShape(point.x, point.z, mainStrength * 0.3);
+                
                 // Create dramatic splash particles based on velocity
                 if (mainStrength > 0.5) {
                     this.createSplashParticles(point.x, point.z, Math.floor(mainStrength * 5));
@@ -345,7 +402,7 @@ class WorkingMindBlowingWater {
                 // Smooth decay
                 gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
                     value: 0,
-                    duration: 1.5,
+                    duration: 2.0,
                     ease: "power3.out"
                 });
             }
@@ -353,7 +410,7 @@ class WorkingMindBlowingWater {
             lastCursorTime = currentTime;
         });
 
-        // Enhanced click effects
+        // Enhanced click effects with morphing shapes
         document.addEventListener('mousedown', (event) => {
             this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -365,16 +422,37 @@ class WorkingMindBlowingWater {
                 const point = intersects[0].point;
                 this.waterMesh.material.uniforms.mouseX.value = point.x;
                 this.waterMesh.material.uniforms.mouseY.value = point.z;
-                this.waterMesh.material.uniforms.mouseStrength.value = 4.0; // Stronger click effect
+                this.waterMesh.material.uniforms.mouseStrength.value = 5.0; // Stronger click effect
+                
+                // Create dramatic morphing shape
+                this.createDramaticMorphingShape(point.x, point.z);
                 
                 // Create dramatic splash
                 this.createDramaticSplash(point.x, point.z);
                 
                 gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
                     value: 0,
-                    duration: 3.0,
+                    duration: 4.0,
                     ease: "power4.out"
                 });
+            }
+        });
+
+        // Add button click listeners for morphing shapes
+        document.addEventListener('click', (event) => {
+            // Check if clicking on navigation buttons
+            const navItem = event.target.closest('.nav-item');
+            if (navItem) {
+                const rect = navItem.getBoundingClientRect();
+                const centerX = (rect.left + rect.right) / 2;
+                const centerY = (rect.top + rect.bottom) / 2;
+                
+                // Convert screen coordinates to world coordinates
+                const worldX = (centerX / window.innerWidth) * 2 - 1;
+                const worldY = -(centerY / window.innerHeight) * 2 + 1;
+                
+                // Create morphing shape at button location
+                this.createButtonMorphingShape(worldX, worldY);
             }
         });
 
@@ -479,18 +557,82 @@ class WorkingMindBlowingWater {
         }
     }
 
+    createMorphingShape(x, z, strength) {
+        // Create a morphing shape effect
+        const morphShape = Math.random(); // Random shape
+        const morphRadius = 5 + strength * 3;
+        
+        this.waterMesh.material.uniforms.morphShape.value = morphShape;
+        this.waterMesh.material.uniforms.morphCenter.value = new THREE.Vector3(x, 0, z);
+        this.waterMesh.material.uniforms.morphRadius.value = morphRadius;
+        
+        // Animate the morphing shape
+        gsap.to(this.waterMesh.material.uniforms.morphRadius, {
+            value: 0,
+            duration: 2.0,
+            ease: "power3.out"
+        });
+    }
+
+    createDramaticMorphingShape(x, z) {
+        console.log(`🔮 Creating dramatic morphing shape at (${x}, ${z})`);
+        
+        // Cycle through different shapes
+        const shapes = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]; // Sphere, Cube, Octahedron, Torus, Dodecahedron
+        const morphShape = shapes[Math.floor(Math.random() * shapes.length)];
+        const morphRadius = 8;
+        
+        this.waterMesh.material.uniforms.morphShape.value = morphShape;
+        this.waterMesh.material.uniforms.morphCenter.value = new THREE.Vector3(x, 0, z);
+        this.waterMesh.material.uniforms.morphRadius.value = morphRadius;
+        
+        // Animate the dramatic morphing shape
+        gsap.to(this.waterMesh.material.uniforms.morphRadius, {
+            value: 0,
+            duration: 3.0,
+            ease: "power4.out"
+        });
+    }
+
+    createButtonMorphingShape(x, y) {
+        console.log(`🔘 Creating button morphing shape at (${x}, ${y})`);
+        
+        // Convert screen coordinates to world coordinates
+        this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+        const intersects = this.raycaster.intersectObject(this.waterMesh);
+        
+        if (intersects.length > 0) {
+            const point = intersects[0].point;
+            
+            // Create a special button morphing shape
+            const morphShape = Math.random();
+            const morphRadius = 6;
+            
+            this.waterMesh.material.uniforms.morphShape.value = morphShape;
+            this.waterMesh.material.uniforms.morphCenter.value = new THREE.Vector3(point.x, 0, point.z);
+            this.waterMesh.material.uniforms.morphRadius.value = morphRadius;
+            
+            // Animate the button morphing shape
+            gsap.to(this.waterMesh.material.uniforms.morphRadius, {
+                value: 0,
+                duration: 2.5,
+                ease: "power3.out"
+            });
+        }
+    }
+
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         
-        this.time += this.clock.getDelta() * 0.5; // Slow down time by 50%
+        this.time += this.clock.getDelta() * 0.2; // Slow down time by 80%
         
         // Update water shader
         this.waterMesh.material.uniforms.time.value = this.time;
         
         // Update particles with dramatic movement
         this.particles.forEach(particle => {
-            particle.position.add(particle.velocity.clone().multiplyScalar(0.008)); // Slow down particle movement
-            particle.velocity.y -= 0.05; // Reduced gravity
+            particle.position.add(particle.velocity.clone().multiplyScalar(0.004)); // Even slower particle movement
+            particle.velocity.y -= 0.03; // Reduced gravity
             
             // Bounce off water surface
             if (particle.position.y < 0) {
@@ -500,19 +642,19 @@ class WorkingMindBlowingWater {
             
             // Fade out particles
             if (particle.material.opacity > 0) {
-                particle.material.opacity -= 0.005; // Slower fade
+                particle.material.opacity -= 0.003; // Slower fade
             }
         });
         
-        // Slower camera movement
-        this.camera.position.x = Math.sin(this.time * 0.1) * 3; // Reduced amplitude and speed
-        this.camera.position.z = 25 + Math.cos(this.time * 0.15) * 2; // Reduced amplitude and speed
+        // Very slow camera movement
+        this.camera.position.x = Math.sin(this.time * 0.05) * 2; // Much slower and smaller movement
+        this.camera.position.z = 25 + Math.cos(this.time * 0.08) * 1.5; // Much slower and smaller movement
         this.camera.lookAt(0, 0, 0);
         
-        // Slower lighting animation
+        // Very slow lighting animation
         this.scene.children.forEach(child => {
             if (child instanceof THREE.PointLight) {
-                child.intensity = 0.5 + Math.sin(this.time * 1.0 + child.position.x) * 0.2; // Slower and less intense
+                child.intensity = 0.5 + Math.sin(this.time * 0.5 + child.position.x) * 0.15; // Much slower and less intense
             }
         });
         
