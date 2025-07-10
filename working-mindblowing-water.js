@@ -104,34 +104,46 @@ class WorkingMindBlowingWater {
                     return value;
                 }
                 
+                // Realistic ripple function
+                float ripple(vec2 pos, vec2 center, float time, float strength) {
+                    float dist = distance(pos, center);
+                    float wave = sin(dist * 10.0 - time * 3.0) * exp(-dist * 0.5) * strength;
+                    return wave * exp(-time * 2.0);
+                }
+                
                 void main() {
                     vUv = uv;
                     vPosition = position;
                     
-                    // Create dramatic waves
-                    float wave1 = fbm(vec2(position.x * 0.05 + time * 0.5, position.z * 0.05 + time * 0.3));
-                    float wave2 = fbm(vec2(position.x * 0.1 + time * 0.2, position.z * 0.1 + time * 0.4));
-                    float wave3 = sin(position.x * 0.5 + time * 2.0) * cos(position.z * 0.5 + time * 1.5);
+                    // Create gentle waves
+                    float wave1 = fbm(vec2(position.x * 0.03 + time * 0.3, position.z * 0.03 + time * 0.2));
+                    float wave2 = fbm(vec2(position.x * 0.06 + time * 0.15, position.z * 0.06 + time * 0.25));
+                    float wave3 = sin(position.x * 0.3 + time * 1.2) * cos(position.z * 0.3 + time * 0.9);
                     
-                    float elevation = wave1 * 2.0 + wave2 * 1.0 + wave3 * 0.5;
+                    float elevation = wave1 * 1.5 + wave2 * 0.8 + wave3 * 0.4;
                     vElevation = elevation;
                     
-                    // Dramatic mouse interaction
+                    // Realistic mouse interaction with ripple effects
                     float distanceToMouse = distance(position.xz, vec2(mouseX, mouseY));
-                    float mouseInfluence = smoothstep(15.0, 0.0, distanceToMouse) * mouseStrength;
-                    float velocityEffect = length(mouseVelocity) * smoothstep(20.0, 0.0, distanceToMouse);
+                    float mouseInfluence = smoothstep(20.0, 0.0, distanceToMouse) * mouseStrength;
                     
-                    elevation += mouseInfluence * 5.0 + velocityEffect * 3.0;
+                    // Add ripple effect
+                    float rippleEffect = ripple(position.xz, vec2(mouseX, mouseY), time, mouseStrength);
+                    elevation += mouseInfluence * 3.0 + rippleEffect * 2.0;
+                    
+                    // Velocity-based disturbance
+                    float velocityEffect = length(mouseVelocity) * smoothstep(25.0, 0.0, distanceToMouse) * 0.5;
+                    elevation += velocityEffect;
                     
                     // Update position
                     vec3 newPosition = position;
                     newPosition.y += elevation;
                     
-                    // Calculate normal for dramatic lighting
-                    float ddx = fbm(vec2((position.x + 1.0) * 0.05 + time * 0.5, position.z * 0.05 + time * 0.3)) - wave1;
-                    float ddz = fbm(vec2(position.x * 0.05 + time * 0.5, (position.z + 1.0) * 0.05 + time * 0.3)) - wave1;
+                    // Calculate normal for realistic lighting
+                    float ddx = fbm(vec2((position.x + 1.0) * 0.03 + time * 0.3, position.z * 0.03 + time * 0.2)) - wave1;
+                    float ddz = fbm(vec2(position.x * 0.03 + time * 0.3, (position.z + 1.0) * 0.03 + time * 0.2)) - wave1;
                     
-                    vec3 normal = normalize(vec3(-ddx * 2.0, 1.0, -ddz * 2.0));
+                    vec3 normal = normalize(vec3(-ddx * 1.5, 1.0, -ddz * 1.5));
                     vNormal = normal;
                     
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
@@ -149,29 +161,29 @@ class WorkingMindBlowingWater {
                 varying float vElevation;
                 
                 void main() {
-                    // Dramatic water color
-                    vec3 color = mix(waterColor, foamColor, smoothstep(0.3, 1.0, vElevation));
+                    // Realistic water color with depth
+                    vec3 color = mix(waterColor, foamColor, smoothstep(0.2, 0.8, vElevation));
                     
-                    // Add dramatic depth variation
+                    // Add depth variation
                     float depth = 1.0 - smoothstep(0.0, 50.0, length(vPosition.xz));
-                    color = mix(color, waterColor * 0.3, depth);
+                    color = mix(color, waterColor * 0.4, depth);
                     
-                    // Dramatic fresnel effect
+                    // Realistic fresnel effect
                     vec3 viewDirection = normalize(cameraPosition - vPosition);
-                    float fresnel = pow(1.0 - max(dot(viewDirection, vNormal), 0.0), 2.0);
-                    color = mix(color, vec3(1.0), fresnel * 0.6);
+                    float fresnel = pow(1.0 - max(dot(viewDirection, vNormal), 0.0), 3.0);
+                    color = mix(color, vec3(1.0), fresnel * 0.4);
                     
-                    // Dramatic sparkle effect
-                    float sparkle = sin(vPosition.x * 30.0 + time * 3.0) * sin(vPosition.z * 30.0 + time * 2.5);
-                    sparkle = smoothstep(0.9, 1.0, sparkle);
-                    color += sparkle * 0.4;
+                    // Gentle sparkle effect
+                    float sparkle = sin(vPosition.x * 20.0 + time * 2.0) * sin(vPosition.z * 20.0 + time * 1.8);
+                    sparkle = smoothstep(0.95, 1.0, sparkle);
+                    color += sparkle * 0.2;
                     
-                    // Add dramatic caustics
-                    float caustic = sin(vPosition.x * 15.0 + time * 1.5) * cos(vPosition.z * 15.0 + time * 1.2);
-                    color += caustic * 0.2;
+                    // Subtle caustics
+                    float caustic = sin(vPosition.x * 10.0 + time * 0.8) * cos(vPosition.z * 10.0 + time * 0.6);
+                    color += caustic * 0.1;
                     
-                    // Dramatic glow effect
-                    color += vec3(0.1, 0.3, 0.5) * 0.3;
+                    // Gentle glow
+                    color += vec3(0.05, 0.15, 0.25) * 0.2;
                     
                     gl_FragColor = vec4(color, transparency);
                 }
@@ -267,7 +279,11 @@ class WorkingMindBlowingWater {
     addEventListeners() {
         console.log('🎮 Setting up dramatic event listeners...');
         
-        // Dramatic mouse tracking
+        // Track cursor position for continuous ripple effects
+        let lastCursorTime = 0;
+        let cursorTrail = [];
+        
+        // Dramatic mouse tracking with enhanced ripple effects
         document.addEventListener('mousemove', (event) => {
             this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -275,6 +291,20 @@ class WorkingMindBlowingWater {
             // Calculate dramatic velocity
             this.mouseVelocity.x = this.mouse.x - this.lastMousePosition.x;
             this.mouseVelocity.y = this.mouse.y - this.lastMousePosition.y;
+            
+            // Store cursor trail for ripple effects
+            const currentTime = Date.now();
+            cursorTrail.push({
+                x: this.mouse.x,
+                y: this.mouse.y,
+                time: currentTime,
+                velocity: Math.sqrt(this.mouseVelocity.x * this.mouseVelocity.x + this.mouseVelocity.y * this.mouseVelocity.y)
+            });
+            
+            // Keep only recent trail points
+            if (cursorTrail.length > 10) {
+                cursorTrail.shift();
+            }
             
             this.lastMousePosition.x = this.mouse.x;
             this.lastMousePosition.y = this.mouse.y;
@@ -285,27 +315,45 @@ class WorkingMindBlowingWater {
             
             if (intersects.length > 0) {
                 const point = intersects[0].point;
+                
+                // Create multiple ripple points based on cursor trail
+                cursorTrail.forEach((trailPoint, index) => {
+                    const timeDiff = currentTime - trailPoint.time;
+                    if (timeDiff < 100) { // Only recent trail points
+                        const strength = Math.max(0.1, 1.0 - (timeDiff / 100)) * trailPoint.velocity * 2;
+                        
+                        // Create ripple at trail point
+                        this.createRippleAtPoint(trailPoint.x, trailPoint.y, strength * 0.5);
+                    }
+                });
+                
+                // Main cursor ripple
+                const mainStrength = Math.min(2.0, Math.sqrt(this.mouseVelocity.x * this.mouseVelocity.x + this.mouseVelocity.y * this.mouseVelocity.y) * 5);
                 this.waterMesh.material.uniforms.mouseX.value = point.x;
                 this.waterMesh.material.uniforms.mouseY.value = point.z;
-                this.waterMesh.material.uniforms.mouseStrength.value = 1.0;
+                this.waterMesh.material.uniforms.mouseStrength.value = mainStrength;
                 this.waterMesh.material.uniforms.mouseVelocity.value = new THREE.Vector2(
-                    this.mouseVelocity.x * 10,
-                    this.mouseVelocity.y * 10
+                    this.mouseVelocity.x * 15,
+                    this.mouseVelocity.y * 15
                 );
                 
-                // Create dramatic splash particles
-                this.createSplashParticles(point.x, point.z);
+                // Create dramatic splash particles based on velocity
+                if (mainStrength > 0.5) {
+                    this.createSplashParticles(point.x, point.z, Math.floor(mainStrength * 5));
+                }
                 
                 // Smooth decay
                 gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
                     value: 0,
-                    duration: 1.0,
+                    duration: 1.5,
                     ease: "power3.out"
                 });
             }
+            
+            lastCursorTime = currentTime;
         });
 
-        // Dramatic click effects
+        // Enhanced click effects
         document.addEventListener('mousedown', (event) => {
             this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -317,14 +365,14 @@ class WorkingMindBlowingWater {
                 const point = intersects[0].point;
                 this.waterMesh.material.uniforms.mouseX.value = point.x;
                 this.waterMesh.material.uniforms.mouseY.value = point.z;
-                this.waterMesh.material.uniforms.mouseStrength.value = 3.0;
+                this.waterMesh.material.uniforms.mouseStrength.value = 4.0; // Stronger click effect
                 
                 // Create dramatic splash
                 this.createDramaticSplash(point.x, point.z);
                 
                 gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
                     value: 0,
-                    duration: 2.0,
+                    duration: 3.0,
                     ease: "power4.out"
                 });
             }
@@ -340,9 +388,32 @@ class WorkingMindBlowingWater {
         console.log('✅ Event listeners ready');
     }
 
-    createSplashParticles(x, z) {
+    createRippleAtPoint(x, y, strength) {
+        // Create a ripple effect at a specific point
+        const ripple = {
+            x: x,
+            y: y,
+            strength: strength,
+            time: 0,
+            maxTime: 2.0
+        };
+        
+        // Add ripple to water shader uniforms
+        if (!this.waterMesh.material.uniforms.ripples) {
+            this.waterMesh.material.uniforms.ripples = { value: [] };
+        }
+        
+        this.waterMesh.material.uniforms.ripples.value.push(ripple);
+        
+        // Remove old ripples
+        if (this.waterMesh.material.uniforms.ripples.value.length > 20) {
+            this.waterMesh.material.uniforms.ripples.value.shift();
+        }
+    }
+
+    createSplashParticles(x, z, count = 10) {
         // Create dramatic splash particles
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < count; i++) {
             const particle = new THREE.Mesh(
                 new THREE.SphereGeometry(0.05, 6, 6),
                 new THREE.MeshBasicMaterial({
@@ -411,15 +482,15 @@ class WorkingMindBlowingWater {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         
-        this.time += this.clock.getDelta();
+        this.time += this.clock.getDelta() * 0.5; // Slow down time by 50%
         
         // Update water shader
         this.waterMesh.material.uniforms.time.value = this.time;
         
         // Update particles with dramatic movement
         this.particles.forEach(particle => {
-            particle.position.add(particle.velocity.clone().multiplyScalar(0.016));
-            particle.velocity.y -= 0.1; // Gravity
+            particle.position.add(particle.velocity.clone().multiplyScalar(0.008)); // Slow down particle movement
+            particle.velocity.y -= 0.05; // Reduced gravity
             
             // Bounce off water surface
             if (particle.position.y < 0) {
@@ -429,19 +500,19 @@ class WorkingMindBlowingWater {
             
             // Fade out particles
             if (particle.material.opacity > 0) {
-                particle.material.opacity -= 0.01;
+                particle.material.opacity -= 0.005; // Slower fade
             }
         });
         
-        // Dramatic camera movement
-        this.camera.position.x = Math.sin(this.time * 0.2) * 5;
-        this.camera.position.z = 25 + Math.cos(this.time * 0.3) * 3;
+        // Slower camera movement
+        this.camera.position.x = Math.sin(this.time * 0.1) * 3; // Reduced amplitude and speed
+        this.camera.position.z = 25 + Math.cos(this.time * 0.15) * 2; // Reduced amplitude and speed
         this.camera.lookAt(0, 0, 0);
         
-        // Dramatic lighting animation
+        // Slower lighting animation
         this.scene.children.forEach(child => {
             if (child instanceof THREE.PointLight) {
-                child.intensity = 0.5 + Math.sin(this.time * 2.0 + child.position.x) * 0.3;
+                child.intensity = 0.5 + Math.sin(this.time * 1.0 + child.position.x) * 0.2; // Slower and less intense
             }
         });
         
