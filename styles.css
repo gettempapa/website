@@ -42,6 +42,8 @@ canvas {
 }
 
 /* Anime Mountain Background */
+
+/* Full-screen background that slowly transitions between red and blue */
 .terminal-container::before {
     content: '';
     position: absolute;
@@ -49,7 +51,9 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    background: 
+    background:
+        /* Color overlay that transitions red ↔ blue */
+        linear-gradient(135deg, rgba(255, 26, 26, 0.35), rgba(26, 102, 255, 0.35)),
         /* Distant mountains */
         linear-gradient(135deg, transparent 0%, transparent 40%, rgba(74, 154, 170, 0.3) 50%, rgba(42, 90, 106, 0.4) 60%, transparent 70%, transparent 100%),
         linear-gradient(225deg, transparent 0%, transparent 30%, rgba(58, 122, 138, 0.3) 40%, rgba(26, 58, 74, 0.4) 50%, transparent 60%, transparent 100%),
@@ -57,14 +61,27 @@ canvas {
         linear-gradient(135deg, transparent 0%, transparent 50%, rgba(127, 219, 218, 0.2) 60%, rgba(72, 219, 251, 0.3) 70%, transparent 80%, transparent 100%),
         linear-gradient(225deg, transparent 0%, transparent 40%, rgba(168, 230, 207, 0.2) 50%, rgba(127, 219, 218, 0.3) 60%, transparent 70%, transparent 100%),
         /* Sky gradient */
-        linear-gradient(180deg, 
-            rgba(10, 26, 42, 0.8) 0%, 
-            rgba(26, 58, 74, 0.6) 30%, 
-            rgba(42, 90, 106, 0.4) 60%, 
+        linear-gradient(180deg,
+            rgba(10, 26, 42, 0.8) 0%,
+            rgba(26, 58, 74, 0.6) 30%,
+            rgba(42, 90, 106, 0.4) 60%,
             rgba(74, 154, 170, 0.2) 100%);
+    background-size: 200% 200%, auto, auto, auto, auto, auto;
+    background-position: 0% 50%, 0 0, 0 0, 0 0, 0 0, 0 0;
+    background-blend-mode: overlay, normal, normal, normal, normal, normal;
     pointer-events: none;
     z-index: 1;
-    animation: mountainFloat 20s ease-in-out infinite;
+    animation: redBlueGradient 30s ease-in-out infinite, mountainFloat 20s ease-in-out infinite;
+}
+
+/* Animate only the first background layer's position to drive the red↔blue transition */
+@keyframes redBlueGradient {
+    0%, 100% {
+        background-position: 0% 50%, 0 0, 0 0, 0 0, 0 0, 0 0;
+    }
+    50% {
+        background-position: 100% 50%, 0 0, 0 0, 0 0, 0 0, 0 0;
+    }
 }
 
 @keyframes mountainFloat {
