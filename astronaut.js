@@ -18,7 +18,8 @@
     renderer.domElement.style.position = 'fixed';
     renderer.domElement.style.top = '0';
     renderer.domElement.style.left = '0';
-    renderer.domElement.style.zIndex = '3';
+    // Ensure above other visual layers but below UI/walker
+    renderer.domElement.style.zIndex = '150';
     renderer.domElement.style.pointerEvents = 'none';
     container.appendChild(renderer.domElement);
 
@@ -59,27 +60,52 @@
 
     // Use relative paths so the browser can load assets from the served directory
     const base = 'armstrong_suit-web_model/';
-    const mtlPath = base + 'suit_ext-part_01-high.mtl';
-    const objPath = base + 'suit_ext-part_01-high.obj';
 
-    mtlLoader.setPath(base);
-    mtlLoader.load('suit_ext-part_01-high.mtl', (materials) => {
-      materials.preload();
-      objLoader.setMaterials(materials);
-      objLoader.setPath(base);
-      objLoader.load('suit_ext-part_01-high.obj', (obj) => {
-        astronaut = obj;
-        astronaut.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-        astronaut.scale.set(0.01, 0.01, 0.01);
-        astronaut.position.set(0, 0, 0);
-        scene.add(astronaut);
+    function fitAndAdd(model) {
+      astronaut = model;
+      astronaut.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
       });
-    });
+      // Auto-fit to ~1.8m height and center at ground
+      const box = new THREE_NS.Box3().setFromObject(astronaut);
+      const size = new THREE_NS.Vector3();
+      box.getSize(size);
+      const center = new THREE_NS.Vector3();
+      box.getCenter(center);
+      const targetHeight = 1.8;
+      const scale = size.y > 0 ? targetHeight / size.y : 1.0;
+      astronaut.scale.setScalar(scale);
+      astronaut.position.sub(center.multiplyScalar(scale));
+      astronaut.position.y -= box.min.y * scale; // place on ground
+      scene.add(astronaut);
+    }
+
+    function loadWithMTL(stem) {
+      mtlLoader.setPath(base);
+      mtlLoader.load(stem + '.mtl', (materials) => {
+        materials.preload();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(base);
+        objLoader.load(stem + '.obj', (obj) => {
+          fitAndAdd(obj);
+        }, undefined, () => {
+          // On error try OBJ without MTL
+          objLoader.setMaterials(null);
+          objLoader.setPath(base);
+          objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj));
+        });
+      }, undefined, () => {
+        // If MTL missing, try OBJ directly
+        objLoader.setPath(base);
+        objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj));
+      });
+    }
+
+    // Prefer decimated model for performance; fallback to suit_ext part
+    loadWithMTL('hard_surf_decimated');
   }
 
   function onResize() {
