@@ -57,7 +57,8 @@
     const mtlLoader = new THREE_NS.MTLLoader(manager);
     const objLoader = new THREE_NS.OBJLoader(manager);
 
-    const base = '/Users/julianlohnes/website/armstrong_suit-web_model/';
+    // Use relative paths so the browser can load assets from the served directory
+    const base = 'armstrong_suit-web_model/';
     const mtlPath = base + 'suit_ext-part_01-high.mtl';
     const objPath = base + 'suit_ext-part_01-high.obj';
 
