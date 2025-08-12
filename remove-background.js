@@ -26,6 +26,21 @@
   const sOut = document.getElementById('sOut');
   const fOut = document.getElementById('fOut');
 
+  // Enhanced slider event handling with debouncing for better performance
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  const debouncedRerun = debounce(rerun, 50); // 50ms debounce for smooth performance
+
   [
     [brightnessEl, bOut, (v) => v],
     [distanceEl, dOut, (v) => v],
@@ -34,7 +49,10 @@
     [featherEl, fOut, (v) => v],
     [aggrEl, aggrOut, (v) => v]
   ].forEach(([input, out, fmt]) => {
-    input.addEventListener('input', () => { out.textContent = fmt(input.value); rerun(); });
+    input.addEventListener('input', () => { 
+      out.textContent = fmt(input.value); 
+      debouncedRerun(); 
+    });
   });
 
   // Initialize readouts to match defaults
@@ -285,11 +303,17 @@
     vOut.textContent = params.valueThreshold;
     sOut.textContent = params.saturationThreshold.toFixed(2);
     
-    // Show extreme mode indicator
+    // Show extreme mode indicator with styling
     if (aggr > 0.8) {
       aggrOut.textContent = aggrEl.value + " (EXTREME)";
+      aggrOut.style.background = 'rgba(255,107,107,0.2)';
+      aggrOut.style.borderColor = 'rgba(255,107,107,0.5)';
+      aggrOut.style.color = '#ff6b6b';
     } else {
       aggrOut.textContent = aggrEl.value;
+      aggrOut.style.background = 'rgba(72,219,251,0.1)';
+      aggrOut.style.borderColor = 'rgba(72,219,251,0.3)';
+      aggrOut.style.color = '#48dbfb';
     }
 
     const w = sourceImage.naturalWidth;
