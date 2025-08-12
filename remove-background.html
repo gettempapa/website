@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Remove Background</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { color: #e8f4f8; }
+    .rb-container {
+      position: relative; z-index: 250; max-width: 1100px; margin: 80px auto; padding: 20px;
+      background: rgba(0,0,0,0.35); border: 1px solid rgba(127,219,218,0.35); border-radius: 10px;
+      backdrop-filter: blur(6px);
+    }
+    .rb-title { font-family: 'Orbitron', monospace; font-size: 1.6rem; color: #48dbfb; margin-bottom: 12px; }
+    .rb-sub { color: #a8e6cf; margin-bottom: 16px; }
+    .drop-zone {
+      border: 2px dashed #48dbfb; border-radius: 12px; padding: 30px; text-align: center; cursor: pointer;
+      background: rgba(72,219,251,0.06); transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .drop-zone.dragover { background: rgba(72,219,251,0.12); border-color: #7fdbda; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+    .panel { background: rgba(0,0,0,0.3); border: 1px solid rgba(127,219,218,0.25); border-radius: 8px; padding: 12px; }
+    .panel h3 { font-family: 'Orbitron', monospace; font-size: 1rem; color: #48dbfb; margin-bottom: 10px; }
+    canvas, img { max-width: 100%; height: auto; background: #111; }
+    .controls { display: grid; grid-template-columns: repeat(2, minmax(200px,1fr)); gap: 12px; margin-top: 16px; }
+    .ctrl label { display: block; font-size: 0.9rem; margin-bottom: 6px; color: #7fdbda; }
+    .ctrl input[type=range] { width: 100%; }
+    .actions { margin-top: 16px; display: flex; gap: 12px; }
+    .btn {
+      font-family: 'Orbitron', monospace; font-weight: 700; letter-spacing: 0.05em; font-size: 0.95rem;
+      color: #0a1a2a; background: linear-gradient(90deg, #ff6b6b, #feca57); border: 2px solid #ff6b6b;
+      padding: 10px 18px; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block;
+    }
+    .hint { color: #7fdbda; font-size: 0.9rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="rb-container">
+    <div class="rb-title">Background Remover</div>
+    <div class="rb-sub">Drag & drop an image below (or click) and it will auto-remove the white/near-white background.</div>
+
+    <div id="dropZone" class="drop-zone" tabindex="0">
+      Drop image here or click to choose
+      <input id="fileInput" type="file" accept="image/*" style="display:none" />
+      <div class="hint">Accepted: PNG, JPG, etc. Processing happens in your browser.</div>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <label>Brightness threshold: <span id="bOut">248</span></label>
+        <input id="brightness" type="range" min="200" max="255" value="248" />
+      </div>
+      <div class="ctrl">
+        <label>Distance to white: <span id="dOut">110</span></label>
+        <input id="distance" type="range" min="0" max="200" value="110" />
+      </div>
+      <div class="ctrl">
+        <label>Value threshold: <span id="vOut">248</span></label>
+        <input id="valueT" type="range" min="200" max="255" value="248" />
+      </div>
+      <div class="ctrl">
+        <label>Saturation max: <span id="sOut">0.22</span></label>
+        <input id="saturation" type="range" min="0" max="100" value="22" />
+      </div>
+      <div class="ctrl">
+        <label>Feather (px): <span id="fOut">2</span></label>
+        <input id="feather" type="range" min="0" max="5" value="2" />
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Original</h3>
+        <img id="orig" alt="Original preview" />
+      </div>
+      <div class="panel">
+        <h3>Transparent Output</h3>
+        <canvas id="outCanvas"></canvas>
+        <div class="actions">
+          <a id="downloadBtn" class="btn" download="output_transparent.png">Download PNG</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="remove-background.js"></script>
+</body>
+</html>
+
+
