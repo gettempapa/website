@@ -149,20 +149,25 @@
     }
     
     // 4. EXTREME MODE: At high aggressiveness, remove almost everything except very dark colors
-    const aggr = (params.extremeValueThreshold - 150) / 105; // Reverse calculate aggressiveness
     if (aggr > 0.8) { // Only apply extreme mode at 80%+ aggressiveness
-      // Remove anything that's not very dark
-      if (brightness >= params.extremeBrightnessThreshold) {
+      // Progressive extreme mode - gets more aggressive as we approach 100%
+      const extremeFactor = (aggr - 0.8) / 0.2; // 0 to 1 as we go from 80% to 100%
+      
+      // Remove anything that's not very dark (progressive)
+      const dynamicBrightnessThreshold = 50 + extremeFactor * (params.extremeBrightnessThreshold - 50);
+      if (brightness >= dynamicBrightnessThreshold) {
         return true;
       }
       
       // Remove anything with significant saturation (except very dark colors)
-      if (s >= params.extremeSaturationThreshold && brightness > 50) {
+      const dynamicSaturationThreshold = 0.1 + extremeFactor * (params.extremeSaturationThreshold - 0.1);
+      if (s >= dynamicSaturationThreshold && brightness > 30) {
         return true;
       }
       
       // Remove anything with high value (HSV) except very dark
-      if (v >= params.extremeValueThreshold && brightness > 50) {
+      const dynamicValueThreshold = 50 + extremeFactor * (params.extremeValueThreshold - 50);
+      if (v >= dynamicValueThreshold && brightness > 30) {
         return true;
       }
     }
@@ -287,10 +292,10 @@
       uniformThreshold: Math.round(5 + aggr * 95),      // 5-100 (much larger uniform tolerance)
       uniformBrightness: Math.round(180 + aggr * 75),   // 180-255
       morphologicalRadius: Math.round(1 + aggr * 5),    // 1-6 (larger morphological operations)
-      // Add new extreme parameters for 100% aggressiveness
-      extremeValueThreshold: Math.round(150 + aggr * 105), // 150-255 (removes even darker colors)
-      extremeSaturationThreshold: 0.02 + aggr * 0.98,      // 0.02-1.00 (removes almost all saturation levels)
-      extremeBrightnessThreshold: Math.round(150 + aggr * 105) // 150-255 (removes even darker brightness)
+      // Extreme mode parameters - these should be MOST aggressive at 100%
+      extremeValueThreshold: Math.round(100 + aggr * 155), // 100-255 (removes even darker colors)
+      extremeSaturationThreshold: 0.01 + aggr * 0.99,      // 0.01-1.00 (removes almost all saturation levels)
+      extremeBrightnessThreshold: Math.round(100 + aggr * 155) // 100-255 (removes even darker brightness)
     };
     
     // Update slider displays to show current effective values
