@@ -6,9 +6,25 @@
   let renderer, scene, camera, clock;
   let astronaut, mixer;
   let keys = { w: false, a: false, s: false, d: false };
+  let statusEl;
 
   function init() {
     const container = document.body;
+
+    // Status overlay
+    statusEl = document.createElement('div');
+    statusEl.style.position = 'fixed';
+    statusEl.style.top = '8px';
+    statusEl.style.right = '8px';
+    statusEl.style.zIndex = '300';
+    statusEl.style.padding = '6px 10px';
+    statusEl.style.fontFamily = 'monospace';
+    statusEl.style.fontSize = '12px';
+    statusEl.style.color = '#0ff';
+    statusEl.style.background = 'rgba(0,0,0,0.35)';
+    statusEl.style.border = '1px solid rgba(0,255,255,0.4)';
+    statusEl.textContent = 'Astronaut: initializing...';
+    container.appendChild(statusEl);
 
     // Renderer
     renderer = new THREE_NS.WebGLRenderer({ antialias: true, alpha: true });
@@ -28,6 +44,7 @@
     scene = new THREE_NS.Scene();
     camera = new THREE_NS.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, 4);
+    camera.lookAt(new THREE_NS.Vector3(0, 1, 0));
 
     // Lights
     scene.add(new THREE_NS.AmbientLight(0xffffff, 0.8));
@@ -65,6 +82,11 @@
 
   function loadAstronaut() {
     const manager = new THREE_NS.LoadingManager();
+    manager.onStart = (url, itemsLoaded, itemsTotal) => {
+      setStatus('Loading assets...');
+    };
+    manager.onLoad = () => setStatus('Assets loaded');
+    manager.onError = (url) => setStatus('Error loading: ' + url);
     const mtlLoader = new THREE_NS.MTLLoader(manager);
     const objLoader = new THREE_NS.OBJLoader(manager);
 
@@ -80,17 +102,21 @@
         }
       });
       // Auto-fit to ~1.8m height and center at ground
-      const box = new THREE_NS.Box3().setFromObject(astronaut);
+      // Compute size first
+      let box = new THREE_NS.Box3().setFromObject(astronaut);
       const size = new THREE_NS.Vector3();
       box.getSize(size);
-      const center = new THREE_NS.Vector3();
-      box.getCenter(center);
       const targetHeight = 1.8;
       const scale = size.y > 0 ? targetHeight / size.y : 1.0;
       astronaut.scale.setScalar(scale);
-      astronaut.position.sub(center.multiplyScalar(scale));
-      astronaut.position.y -= box.min.y * scale; // place on ground
+      // Recompute bounds after scale, then center and place on ground
+      box = new THREE_NS.Box3().setFromObject(astronaut);
+      const center = new THREE_NS.Vector3();
+      box.getCenter(center);
+      astronaut.position.sub(center);
+      astronaut.position.y -= box.min.y; // place on ground
       scene.add(astronaut);
+      setStatus('Astronaut ready (WASD)');
     }
 
     function loadWithMTL(stem) {
@@ -110,7 +136,8 @@
           objLoader.setPath(base);
           objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj), undefined, (err2) => {
             console.error('OBJ load failed', err2);
-            addFallbackCube();
+            setStatus('OBJ failed: ' + stem + '.obj');
+            tryNextStem();
           });
         });
       }, undefined, (err) => {
@@ -120,13 +147,32 @@
         objLoader.setResourcePath(base);
         objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj), undefined, (err2) => {
           console.error('OBJ load failed', err2);
-          addFallbackCube();
+          setStatus('OBJ failed: ' + stem + '.obj');
+          tryNextStem();
         });
       });
     }
 
-    // Prefer decimated model for performance; fallback to suit_ext part
-    loadWithMTL('hard_surf_decimated');
+    const stems = [
+      'hard_surf_decimated',
+      'suit_ext-part_01-high',
+      'suit_ext-part_02-high',
+      'suit_ext-part_03-high',
+      'interior_high'
+    ];
+    let stemIndex = 0;
+    function tryNextStem() {
+      stemIndex += 1;
+      if (stemIndex < stems.length) {
+        setStatus('Trying ' + stems[stemIndex] + '...');
+        loadWithMTL(stems[stemIndex]);
+      } else {
+        setStatus('All stems failed. Showing fallback cube.');
+        addFallbackCube();
+      }
+    }
+    setStatus('Loading ' + stems[0] + '...');
+    loadWithMTL(stems[0]);
   }
 
   function addFallbackCube() {
@@ -177,6 +223,11 @@
     const delta = clock.getDelta();
     update(delta);
     renderer.render(scene, camera);
+  }
+
+  function setStatus(text) {
+    if (statusEl) statusEl.textContent = 'Astronaut: ' + text;
+    console.log('[Astronaut]', text);
   }
 
   // Delay init until Three.js has loaded
