@@ -83,6 +83,8 @@
   });
 
   let sourceImage = null;
+  let originalImageData = null; // Store the original image data
+  let currentMask = null; // Store the current mask
 
   function handleFile(file) {
     const reader = new FileReader();
@@ -91,6 +93,15 @@
       img.onload = () => {
         sourceImage = img;
         origImg.src = img.src;
+        
+        // Store original image data
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = img.naturalWidth;
+        tempCanvas.height = img.naturalHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(img, 0, 0);
+        originalImageData = tempCtx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+        
         rerun();
       };
       img.src = reader.result;
@@ -125,7 +136,7 @@
   }
 
   // Advanced background detection using multiple techniques
-  function isBackgroundPixel(r, g, b, params) {
+  function isBackgroundPixel(r, g, b, params, aggr) {
     const [h, s, v] = rgbToHsv(r, g, b);
     const brightness = (r + g + b) / 3;
     
@@ -154,20 +165,20 @@
       const extremeFactor = (aggr - 0.8) / 0.2; // 0 to 1 as we go from 80% to 100%
       
       // Remove anything that's not very dark (progressive)
-      const dynamicBrightnessThreshold = 50 + extremeFactor * (params.extremeBrightnessThreshold - 50);
+      const dynamicBrightnessThreshold = 30 + extremeFactor * 225; // 30 to 255
       if (brightness >= dynamicBrightnessThreshold) {
         return true;
       }
       
       // Remove anything with significant saturation (except very dark colors)
-      const dynamicSaturationThreshold = 0.1 + extremeFactor * (params.extremeSaturationThreshold - 0.1);
-      if (s >= dynamicSaturationThreshold && brightness > 30) {
+      const dynamicSaturationThreshold = 0.05 + extremeFactor * 0.95; // 0.05 to 1.0
+      if (s >= dynamicSaturationThreshold && brightness > 20) {
         return true;
       }
       
       // Remove anything with high value (HSV) except very dark
-      const dynamicValueThreshold = 50 + extremeFactor * (params.extremeValueThreshold - 50);
-      if (v >= dynamicValueThreshold && brightness > 30) {
+      const dynamicValueThreshold = 20 + extremeFactor * 235; // 20 to 255
+      if (v >= dynamicValueThreshold && brightness > 20) {
         return true;
       }
     }
@@ -226,7 +237,7 @@
   }
 
   // Flood fill with connectivity analysis
-  function floodFillFromEdges(data, width, height, params) {
+  function floodFillFromEdges(data, width, height, params, aggr) {
     const mask = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
     const queue = [];
@@ -243,7 +254,7 @@
       const i = p * 4;
       const r = data[i], g = data[i+1], b = data[i+2];
       
-      if (isBackgroundPixel(r, g, b, params)) {
+      if (isBackgroundPixel(r, g, b, params, aggr)) {
         mask[p] = 1;
         queue.push([x, y]);
         clearOrder.push(p);
@@ -274,7 +285,7 @@
   }
 
   function rerun() {
-    if (!sourceImage) return;
+    if (!sourceImage || !originalImageData) return;
     currentAnimToken++;
     const animToken = currentAnimToken;
     
@@ -292,10 +303,6 @@
       uniformThreshold: Math.round(5 + aggr * 95),      // 5-100 (much larger uniform tolerance)
       uniformBrightness: Math.round(180 + aggr * 75),   // 180-255
       morphologicalRadius: Math.round(1 + aggr * 5),    // 1-6 (larger morphological operations)
-      // Extreme mode parameters - these should be MOST aggressive at 100%
-      extremeValueThreshold: Math.round(100 + aggr * 155), // 100-255 (removes even darker colors)
-      extremeSaturationThreshold: 0.01 + aggr * 0.99,      // 0.01-1.00 (removes almost all saturation levels)
-      extremeBrightnessThreshold: Math.round(100 + aggr * 155) // 100-255 (removes even darker brightness)
     };
     
     // Update slider displays to show current effective values
@@ -325,12 +332,17 @@
     const h = sourceImage.naturalHeight;
     outCanvas.width = w; outCanvas.height = h;
     const ctx = outCanvas.getContext('2d');
-    ctx.drawImage(sourceImage, 0, 0);
-    const imgData = ctx.getImageData(0, 0, w, h);
+    
+    // Restore original image data
+    const imgData = new ImageData(
+      new Uint8ClampedArray(originalImageData.data),
+      originalImageData.width,
+      originalImageData.height
+    );
     const data = imgData.data;
 
     // Step 1: Advanced flood fill with proper connectivity
-    const { mask, clearOrder } = floodFillFromEdges(data, w, h, params);
+    const { mask, clearOrder } = floodFillFromEdges(data, w, h, params, aggr);
     
     // Step 2: Morphological operations for noise reduction
     const cleanedMask = morphologicalClose(mask, w, h, params.morphologicalRadius);
@@ -414,33 +426,15 @@
     finalClearOrder.push(...edgePixels);
     finalClearOrder.push(...interiorPixels);
 
-    // Animate removal with proper timing
-    const desiredMs = 800;
-    const perFrame = Math.max(100, Math.floor(finalClearOrder.length / (desiredMs / 16)));
-    let pos = 0;
-
-    function step() {
-      if (animToken !== currentAnimToken) return; // canceled by new run
-      
-      const end = Math.min(finalClearOrder.length, pos + perFrame);
-      for (let i = pos; i < end; i++) {
-        const p = finalClearOrder[i];
-        const aIndex = p * 4 + 3;
-        data[aIndex] = 0; // Set alpha to 0
-      }
-      pos = end;
-      
-      ctx.putImageData(imgData, 0, 0);
-      
-      if (pos < finalClearOrder.length) {
-        requestAnimationFrame(step);
-      } else {
-        downloadBtn.href = outCanvas.toDataURL('image/png');
-      }
+    // Apply mask immediately (no animation for slider changes)
+    for (let i = 0; i < finalClearOrder.length; i++) {
+      const p = finalClearOrder[i];
+      const aIndex = p * 4 + 3;
+      data[aIndex] = 0; // Set alpha to 0
     }
-
-    // Start animation
-    requestAnimationFrame(step);
+    
+    ctx.putImageData(imgData, 0, 0);
+    downloadBtn.href = outCanvas.toDataURL('image/png');
   }
 })();
 
