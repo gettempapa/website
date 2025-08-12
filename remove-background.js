@@ -86,6 +86,30 @@
   let originalImageData = null; // Store the original image data
   let currentMask = null; // Store the current mask
 
+  // Initialize canvas with a visible placeholder
+  function initCanvas() {
+    const ctx = outCanvas.getContext('2d');
+    outCanvas.width = 400;
+    outCanvas.height = 300;
+    
+    // Draw a placeholder
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+    
+    ctx.fillStyle = '#48dbfb';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Drop an image to start processing', outCanvas.width/2, outCanvas.height/2);
+    
+    outCanvas.style.display = 'block';
+    outCanvas.style.maxHeight = '40vh';
+    outCanvas.style.width = '100%';
+    outCanvas.style.objectFit = 'contain';
+  }
+
+  // Initialize canvas on page load
+  initCanvas();
+
   function handleFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -448,6 +472,7 @@
     outCanvas.style.objectFit = 'contain';
     
     console.log('Canvas updated, pixels processed:', finalClearOrder.length);
+    console.log('Canvas dimensions:', outCanvas.width, 'x', outCanvas.height);
   }
 })();
 
