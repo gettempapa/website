@@ -333,6 +333,10 @@
     outCanvas.width = w; outCanvas.height = h;
     const ctx = outCanvas.getContext('2d');
     
+    // Set canvas background to checkerboard pattern for transparency
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, w, h);
+    
     // Restore original image data
     const imgData = new ImageData(
       new Uint8ClampedArray(originalImageData.data),
@@ -427,6 +431,7 @@
     finalClearOrder.push(...interiorPixels);
 
     // Apply mask immediately (no animation for slider changes)
+    console.log(`Applying mask to ${finalClearOrder.length} pixels with aggressiveness ${aggr}`);
     for (let i = 0; i < finalClearOrder.length; i++) {
       const p = finalClearOrder[i];
       const aIndex = p * 4 + 3;
@@ -435,6 +440,14 @@
     
     ctx.putImageData(imgData, 0, 0);
     downloadBtn.href = outCanvas.toDataURL('image/png');
+    
+    // Ensure the canvas is visible and has proper styling
+    outCanvas.style.display = 'block';
+    outCanvas.style.maxHeight = '40vh';
+    outCanvas.style.width = '100%';
+    outCanvas.style.objectFit = 'contain';
+    
+    console.log('Canvas updated, pixels processed:', finalClearOrder.length);
   }
 })();
 
