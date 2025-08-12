@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize the terminal
     initializeTerminal();
     
-    // Set up navigation
+    // Set up navigation (safe if no nav items)
     setupNavigation();
     
     // Set up keyboard navigation
@@ -29,14 +29,27 @@ function initializeTerminal() {
 function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
     const contentSections = document.querySelectorAll('.content-section');
+    const startButton = document.getElementById('start-button');
     
+    // START button behavior: show About by default and hide the hero START area
+    if (startButton) {
+        startButton.addEventListener('click', () => {
+            switchSection('about');
+            // Optionally hide the start container after starting
+            const startContainer = startButton.closest('.start-container');
+            if (startContainer) {
+                startContainer.style.display = 'none';
+            }
+        });
+    }
+
+    // Retain behavior if any nav items remain elsewhere
     navItems.forEach(item => {
         item.addEventListener('click', function() {
             const target = this.getAttribute('data-target');
             switchSection(target);
         });
         
-        // Add hover sound effect simulation
         item.addEventListener('mouseenter', function() {
             this.style.transform = 'translateY(-5px) scale(1.05)';
             addGlitchEffect(this);
@@ -81,8 +94,11 @@ function setupKeyboardNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
     let currentIndex = 0;
     
-    // Set initial focus
-    if (navItems.length > 0) {
+    // If there are no nav items, focus START if present
+    if (navItems.length === 0) {
+        const startButton = document.getElementById('start-button');
+        if (startButton) startButton.focus();
+    } else {
         navItems[0].classList.add('focused');
         navItems[0].focus();
     }
@@ -116,8 +132,13 @@ function setupKeyboardNavigation() {
             case 'Enter':
             case ' ':
                 e.preventDefault();
-                const target = navItems[currentIndex].getAttribute('data-target');
-                switchSection(target);
+                if (navItems.length > 0) {
+                    const target = navItems[currentIndex].getAttribute('data-target');
+                    switchSection(target);
+                } else {
+                    const startButton = document.getElementById('start-button');
+                    if (startButton) startButton.click();
+                }
                 break;
         }
     });
