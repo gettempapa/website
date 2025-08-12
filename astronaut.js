@@ -15,6 +15,7 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputEncoding = THREE_NS.sRGBEncoding;
+    renderer.setClearAlpha(0);
     renderer.domElement.style.position = 'fixed';
     renderer.domElement.style.top = '0';
     renderer.domElement.style.left = '0';
@@ -41,6 +42,15 @@
     );
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
+
+    // Visual helpers (temporary):
+    const grid = new THREE_NS.GridHelper(20, 20, 0x00ffff, 0x004444);
+    grid.material.opacity = 0.15;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    const axes = new THREE_NS.AxesHelper(1.5);
+    scene.add(axes);
 
     clock = new THREE_NS.Clock();
 
@@ -85,27 +95,46 @@
 
     function loadWithMTL(stem) {
       mtlLoader.setPath(base);
+      mtlLoader.setResourcePath(base);
       mtlLoader.load(stem + '.mtl', (materials) => {
         materials.preload();
         objLoader.setMaterials(materials);
         objLoader.setPath(base);
+        objLoader.setResourcePath(base);
         objLoader.load(stem + '.obj', (obj) => {
           fitAndAdd(obj);
-        }, undefined, () => {
+        }, undefined, (err) => {
+          console.warn('OBJ load with MTL failed, falling back to OBJ only', err);
           // On error try OBJ without MTL
           objLoader.setMaterials(null);
           objLoader.setPath(base);
-          objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj));
+          objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj), undefined, (err2) => {
+            console.error('OBJ load failed', err2);
+            addFallbackCube();
+          });
         });
-      }, undefined, () => {
+      }, undefined, (err) => {
+        console.warn('MTL load failed, trying OBJ directly', err);
         // If MTL missing, try OBJ directly
         objLoader.setPath(base);
-        objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj));
+        objLoader.setResourcePath(base);
+        objLoader.load(stem + '.obj', (obj) => fitAndAdd(obj), undefined, (err2) => {
+          console.error('OBJ load failed', err2);
+          addFallbackCube();
+        });
       });
     }
 
     // Prefer decimated model for performance; fallback to suit_ext part
     loadWithMTL('hard_surf_decimated');
+  }
+
+  function addFallbackCube() {
+    const geo = new THREE_NS.BoxGeometry(1, 1, 1);
+    const mat = new THREE_NS.MeshStandardMaterial({ color: 0x00ffff, metalness: 0.1, roughness: 0.8 });
+    astronaut = new THREE_NS.Mesh(geo, mat);
+    astronaut.position.set(0, 0.5, 0);
+    scene.add(astronaut);
   }
 
   function onResize() {
