@@ -1,4 +1,4 @@
-// Client-side background remover with edge flood-fill + near-white detection
+// Advanced client-side background remover using proper image processing techniques
 (function() {
   // Prevent browser from opening dropped files in a new tab
   ['dragenter','dragover','dragleave','drop'].forEach(evt => {
@@ -82,17 +82,185 @@
 
   let currentAnimToken = 0;
 
+  // Convert RGB to HSV (proper color space for background detection)
+  function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const diff = max - min;
+    const sum = max + min;
+    
+    let h = 0;
+    if (diff !== 0) {
+      switch (max) {
+        case r: h = (g - b) / diff + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / diff + 2; break;
+        case b: h = (r - g) / diff + 4; break;
+      }
+      h /= 6;
+    }
+    
+    const s = max === 0 ? 0 : diff / max;
+    const v = max;
+    
+    return [h, s, v];
+  }
+
+  // Advanced background detection using multiple techniques
+  function isBackgroundPixel(r, g, b, params) {
+    const [h, s, v] = rgbToHsv(r, g, b);
+    
+    // 1. HSV-based detection (most reliable for white/light backgrounds)
+    if (v >= params.valueThreshold && s <= params.saturationThreshold) {
+      return true;
+    }
+    
+    // 2. RGB brightness + distance to white
+    const brightness = (r + g + b) / 3;
+    if (brightness >= params.brightnessThreshold) {
+      const distToWhite = Math.sqrt((255-r)**2 + (255-g)**2 + (255-b)**2);
+      if (distToWhite <= params.distanceThreshold) {
+        return true;
+      }
+    }
+    
+    // 3. Uniform color detection (for solid backgrounds)
+    const maxDiff = Math.max(Math.abs(r-g), Math.abs(g-b), Math.abs(b-r));
+    if (maxDiff <= params.uniformThreshold && brightness >= params.uniformBrightness) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  // Morphological operations for noise reduction
+  function morphologicalClose(mask, width, height, radius) {
+    const result = new Uint8Array(mask);
+    
+    // Dilation
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (mask[y * width + x]) continue;
+        let hasNeighbor = false;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+              if (mask[ny * width + nx]) {
+                hasNeighbor = true;
+                break;
+              }
+            }
+          }
+          if (hasNeighbor) break;
+        }
+        if (hasNeighbor) result[y * width + x] = 1;
+      }
+    }
+    
+    // Erosion
+    const temp = new Uint8Array(result);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (!temp[y * width + x]) continue;
+        let allNeighbors = true;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+              if (!temp[ny * width + nx]) {
+                allNeighbors = false;
+                break;
+              }
+            }
+          }
+          if (!allNeighbors) break;
+        }
+        if (!allNeighbors) result[y * width + x] = 0;
+      }
+    }
+    
+    return result;
+  }
+
+  // Flood fill with connectivity analysis
+  function floodFillFromEdges(data, width, height, params) {
+    const mask = new Uint8Array(width * height);
+    const visited = new Uint8Array(width * height);
+    const queue = [];
+    const clearOrder = [];
+    
+    function idx(x, y) { return y * width + x; }
+    
+    function enqueue(x, y) {
+      if (x < 0 || x >= width || y < 0 || y >= height) return;
+      const p = idx(x, y);
+      if (visited[p]) return;
+      
+      visited[p] = 1;
+      const i = p * 4;
+      const r = data[i], g = data[i+1], b = data[i+2];
+      
+      if (isBackgroundPixel(r, g, b, params)) {
+        mask[p] = 1;
+        queue.push([x, y]);
+        clearOrder.push(p);
+      }
+    }
+    
+    // Seed from edges
+    for (let x = 0; x < width; x++) {
+      enqueue(x, 0);
+      enqueue(x, height - 1);
+    }
+    for (let y = 0; y < height; y++) {
+      enqueue(0, y);
+      enqueue(width - 1, y);
+    }
+    
+    // Flood fill
+    while (queue.length > 0) {
+      const [x, y] = queue.shift();
+      
+      // 8-connectivity for better coverage
+      enqueue(x-1, y-1); enqueue(x, y-1); enqueue(x+1, y-1);
+      enqueue(x-1, y);                     enqueue(x+1, y);
+      enqueue(x-1, y+1); enqueue(x, y+1); enqueue(x+1, y+1);
+    }
+    
+    return { mask, clearOrder };
+  }
+
   function rerun() {
     if (!sourceImage) return;
     currentAnimToken++;
     const animToken = currentAnimToken;
+    
+    // Map aggressiveness (0-100) to extreme parameter ranges
     const aggr = parseInt(aggrEl.value, 10) / 100; // 0..1
-    // Map aggressiveness to thresholds (more aggressive -> higher brightness/value, larger distance, higher sat)
-    const brightness = Math.round(235 + aggr * (255 - 235));
-    const distance = Math.round(50 + aggr * (140 - 50));
-    const valueT = Math.round(235 + aggr * (255 - 235));
-    const saturation = 0.05 + aggr * (0.35 - 0.05); // 0.05..0.35
-    const feather = parseInt(featherEl.value, 10);
+    
+    // Extreme parameter mapping based on aggressiveness
+    const params = {
+      // At 0: Very conservative (only pure white)
+      // At 100: Extremely aggressive (removes most light colors)
+      brightnessThreshold: Math.round(200 + aggr * 55), // 200-255
+      distanceThreshold: Math.round(20 + aggr * 180),   // 20-200
+      valueThreshold: Math.round(200 + aggr * 55),      // 200-255
+      saturationThreshold: 0.05 + aggr * 0.45,          // 0.05-0.50
+      uniformThreshold: Math.round(5 + aggr * 45),      // 5-50
+      uniformBrightness: Math.round(180 + aggr * 75),   // 180-255
+      morphologicalRadius: Math.round(1 + aggr * 3)     // 1-4
+    };
+    
+    // Update slider displays to show current effective values
+    brightnessEl.value = params.brightnessThreshold;
+    distanceEl.value = params.distanceThreshold;
+    valueEl.value = params.valueThreshold;
+    saturationEl.value = Math.round(params.saturationThreshold * 100);
+    bOut.textContent = params.brightnessThreshold;
+    dOut.textContent = params.distanceThreshold;
+    vOut.textContent = params.valueThreshold;
+    sOut.textContent = params.saturationThreshold.toFixed(2);
 
     const w = sourceImage.naturalWidth;
     const h = sourceImage.naturalHeight;
@@ -102,116 +270,110 @@
     const imgData = ctx.getImageData(0, 0, w, h);
     const data = imgData.data;
 
-    // Flood-fill mask from edges for near-white background
-    const mask = new Uint8Array(w * h); // 0/1
-    const clearOrder = new Int32Array(w * h); // order indices for animation
-    let clearCount = 0;
-    const qx = new Int32Array(w * h);
-    const qy = new Int32Array(w * h);
-    let qs = 0, qe = 0;
-
-    function idx(x, y) { return (y * w + x) | 0; }
-    function getRGB(i) { return [data[i], data[i+1], data[i+2]]; }
-    function isNearWhite(r, g, b) {
-      // Brightness + distance to white + HSV-like saturation/value test
-      const bright = r >= brightness && g >= brightness && b >= brightness;
-      if (bright) {
-        const dr = 255 - r, dg = 255 - g, db = 255 - b;
-        if ((dr*dr + dg*dg + db*db) <= (distance * distance)) return true;
-      }
-      const v = Math.max(r, g, b);
-      if (v >= valueT) {
-        const m = Math.min(r, g, b);
-        const sat = v === 0 ? 0 : (v - m) / v;
-        if (sat <= saturation) return true;
-      }
-      return false;
-    }
-
-    const visited = new Uint8Array(w * h);
-    function enqueue(x, y) {
-      const p = idx(x, y);
-      if (mask[p]) return;
-      const i = p * 4;
-      const [r, g, b] = getRGB(i);
-      if (isNearWhite(r, g, b)) {
-        mask[p] = 1;
-        qx[qe] = x; qy[qe] = y; qe++;
-        clearOrder[clearCount++] = p; // base order: edge-first fill
-      }
-    }
-
-    // seed from edges
-    for (let x = 0; x < w; x++) { enqueue(x, 0); enqueue(x, h - 1); }
-    for (let y = 0; y < h; y++) { enqueue(0, y); enqueue(w - 1, y); }
-
-    // BFS 4-neighborhood
-    while (qs < qe) {
-      const x = qx[qs]; const y = qy[qs]; qs++;
-      if (x + 1 < w) enqueue(x + 1, y);
-      if (x - 1 >= 0) enqueue(x - 1, y);
-      if (y + 1 < h) enqueue(x, y + 1);
-      if (y - 1 >= 0) enqueue(x, y - 1);
-    }
-
-    // Optional feather (dilation)
-    for (let f = 0; f < feather; f++) {
-      const grown = new Uint8Array(mask);
+    // Step 1: Advanced flood fill with proper connectivity
+    const { mask, clearOrder } = floodFillFromEdges(data, w, h, params);
+    
+    // Step 2: Morphological operations for noise reduction
+    const cleanedMask = morphologicalClose(mask, w, h, params.morphologicalRadius);
+    
+    // Step 3: Feathering (edge softening)
+    const featherAmount = parseInt(featherEl.value, 10);
+    if (featherAmount > 0) {
+      const featheredMask = new Uint8Array(cleanedMask);
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
-          const p = idx(x, y);
-          if (mask[p]) continue;
-          for (let ny = y - 1; ny <= y + 1; ny++) {
-            for (let nx = x - 1; nx <= x + 1; nx++) {
+          const p = y * w + x;
+          if (cleanedMask[p]) continue;
+          
+          // Check if near a background pixel
+          let nearBackground = false;
+          for (let dy = -featherAmount; dy <= featherAmount; dy++) {
+            for (let dx = -featherAmount; dx <= featherAmount; dx++) {
+              const nx = x + dx, ny = y + dy;
               if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-                if (mask[idx(nx, ny)]) { grown[p] = 1; nx = w; ny = h; break; }
+                if (cleanedMask[ny * w + nx]) {
+                  nearBackground = true;
+                  break;
+                }
               }
+            }
+            if (nearBackground) break;
+          }
+          
+          if (nearBackground) {
+            featheredMask[p] = 1;
+            // Add to clear order for animation
+            if (!clearOrder.includes(p)) {
+              clearOrder.push(p);
             }
           }
         }
       }
-      for (let i = 0; i < mask.length; i++) {
-        if (!mask[i] && grown[i]) {
-          // Add newly grown pixels to the end of clear order so user sees expansion
-          clearOrder[clearCount++] = i;
+      
+      // Update mask and reorder clearOrder to prioritize edge pixels
+      for (let i = 0; i < featheredMask.length; i++) {
+        if (featheredMask[i] && !cleanedMask[i]) {
+          cleanedMask[i] = 1;
         }
-        mask[i] = grown[i];
       }
     }
 
-    // If some masked pixels were not captured in the initial BFS order (e.g., isolated islands), add them now
-    for (let p = 0; p < mask.length; p++) {
-      if (mask[p]) {
-        // ensure present in order
-        // We used an Int32Array; we'll just append duplicates safely by tracking a separate seen map
+    // Create final clear order prioritizing edge pixels
+    const finalClearOrder = [];
+    const edgePixels = new Set();
+    const interiorPixels = new Set();
+    
+    // Separate edge and interior pixels
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = y * w + x;
+        if (!cleanedMask[p]) continue;
+        
+        let isEdge = false;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              if (!cleanedMask[ny * w + nx]) {
+                isEdge = true;
+                break;
+              }
+            }
+          }
+          if (isEdge) break;
+        }
+        
+        if (isEdge) {
+          edgePixels.add(p);
+        } else {
+          interiorPixels.add(p);
+        }
       }
     }
+    
+    // Add edge pixels first, then interior
+    finalClearOrder.push(...edgePixels);
+    finalClearOrder.push(...interiorPixels);
 
-    // Build a set of which pixels are already included in clearOrder (first clearCount entries)
-    const inOrder = new Uint8Array(mask.length);
-    for (let i = 0; i < clearCount; i++) inOrder[clearOrder[i]] = 1;
-    for (let p = 0; p < mask.length; p++) {
-      if (mask[p] && !inOrder[p]) {
-        clearOrder[clearCount++] = p;
-      }
-    }
-
-    // Animate removal pixel-by-pixel in batches so user watches it vanish
-    const desiredMs = 700; // faster when adjusting aggressively
-    const perFrame = Math.max(1200, Math.floor(clearCount / (desiredMs / 16))); // larger batch per frame
+    // Animate removal with proper timing
+    const desiredMs = 800;
+    const perFrame = Math.max(100, Math.floor(finalClearOrder.length / (desiredMs / 16)));
     let pos = 0;
 
     function step() {
       if (animToken !== currentAnimToken) return; // canceled by new run
-      const end = Math.min(clearCount, pos + perFrame);
+      
+      const end = Math.min(finalClearOrder.length, pos + perFrame);
       for (let i = pos; i < end; i++) {
-        const p = clearOrder[i];
+        const p = finalClearOrder[i];
         const aIndex = p * 4 + 3;
-        data[aIndex] = 0;
+        data[aIndex] = 0; // Set alpha to 0
       }
       pos = end;
+      
       ctx.putImageData(imgData, 0, 0);
-      if (pos < clearCount) {
+      
+      if (pos < finalClearOrder.length) {
         requestAnimationFrame(step);
       } else {
         downloadBtn.href = outCanvas.toDataURL('image/png');
@@ -222,5 +384,7 @@
     requestAnimationFrame(step);
   }
 })();
+
+
 
 
