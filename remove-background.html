@@ -19,10 +19,11 @@
       background: rgba(72,219,251,0.06); transition: background 0.2s ease, border-color 0.2s ease;
     }
     .drop-zone.dragover { background: rgba(72,219,251,0.12); border-color: #7fdbda; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; align-items: start; }
     .panel { background: rgba(0,0,0,0.3); border: 1px solid rgba(127,219,218,0.25); border-radius: 8px; padding: 12px; }
     .panel h3 { font-family: 'Orbitron', monospace; font-size: 1rem; color: #48dbfb; margin-bottom: 10px; }
     canvas, img { max-width: 100%; height: auto; background: #111; }
+    #orig, #outCanvas { max-height: 60vh; width: 100%; object-fit: contain; display: block; }
     .controls { display: grid; grid-template-columns: repeat(2, minmax(200px,1fr)); gap: 12px; margin-top: 16px; }
     .ctrl label { display: block; font-size: 0.9rem; margin-bottom: 6px; color: #7fdbda; }
     .ctrl input[type=range] { width: 100%; }
