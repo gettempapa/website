@@ -34,6 +34,13 @@
     input.addEventListener('input', () => { out.textContent = fmt(input.value); rerun(); });
   });
 
+  // Initialize readouts to match defaults
+  bOut.textContent = brightnessEl.value;
+  dOut.textContent = distanceEl.value;
+  vOut.textContent = valueEl.value;
+  sOut.textContent = (parseInt(saturationEl.value,10)/100).toFixed(2);
+  fOut.textContent = featherEl.value;
+
   dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
@@ -184,8 +191,8 @@
     }
 
     // Animate removal pixel-by-pixel in batches so user watches it vanish
-    const desiredMs = 1200; // aim ~1.2s animation
-    const perFrame = Math.max(500, Math.floor(clearCount / (desiredMs / 16))); // batch size per frame
+    const desiredMs = 900; // slightly faster to look more aggressive
+    const perFrame = Math.max(1000, Math.floor(clearCount / (desiredMs / 16))); // larger batch per frame
     let pos = 0;
 
     function step() {
