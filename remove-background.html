@@ -47,6 +47,13 @@
     </div>
 
     <div class="controls">
+      <div class="ctrl" style="grid-column: 1 / -1;">
+        <label>
+          Aggressiveness: <span id="aggrOut">70</span>
+        </label>
+        <input id="aggr" type="range" min="0" max="100" value="70" />
+        <div class="hint">Higher = removes darker off-whites and light grays. Lower = restores more background.</div>
+      </div>
       <div class="ctrl">
         <label>Brightness threshold: <span id="bOut">250</span></label>
         <input id="brightness" type="range" min="200" max="255" value="250" />

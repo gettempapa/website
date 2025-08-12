@@ -18,6 +18,8 @@
   const valueEl = document.getElementById('valueT');
   const saturationEl = document.getElementById('saturation');
   const featherEl = document.getElementById('feather');
+  const aggrEl = document.getElementById('aggr');
+  const aggrOut = document.getElementById('aggrOut');
   const bOut = document.getElementById('bOut');
   const dOut = document.getElementById('dOut');
   const vOut = document.getElementById('vOut');
@@ -29,7 +31,8 @@
     [distanceEl, dOut, (v) => v],
     [valueEl, vOut, (v) => v],
     [saturationEl, sOut, (v) => (v/100).toFixed(2)],
-    [featherEl, fOut, (v) => v]
+    [featherEl, fOut, (v) => v],
+    [aggrEl, aggrOut, (v) => v]
   ].forEach(([input, out, fmt]) => {
     input.addEventListener('input', () => { out.textContent = fmt(input.value); rerun(); });
   });
@@ -40,6 +43,7 @@
   vOut.textContent = valueEl.value;
   sOut.textContent = (parseInt(saturationEl.value,10)/100).toFixed(2);
   fOut.textContent = featherEl.value;
+  aggrOut.textContent = aggrEl.value;
 
   dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -82,10 +86,12 @@
     if (!sourceImage) return;
     currentAnimToken++;
     const animToken = currentAnimToken;
-    const brightness = parseInt(brightnessEl.value, 10);
-    const distance = parseInt(distanceEl.value, 10);
-    const valueT = parseInt(valueEl.value, 10);
-    const saturation = parseInt(saturationEl.value, 10) / 100;
+    const aggr = parseInt(aggrEl.value, 10) / 100; // 0..1
+    // Map aggressiveness to thresholds (more aggressive -> higher brightness/value, larger distance, higher sat)
+    const brightness = Math.round(235 + aggr * (255 - 235));
+    const distance = Math.round(50 + aggr * (140 - 50));
+    const valueT = Math.round(235 + aggr * (255 - 235));
+    const saturation = 0.05 + aggr * (0.35 - 0.05); // 0.05..0.35
     const feather = parseInt(featherEl.value, 10);
 
     const w = sourceImage.naturalWidth;
@@ -191,8 +197,8 @@
     }
 
     // Animate removal pixel-by-pixel in batches so user watches it vanish
-    const desiredMs = 900; // slightly faster to look more aggressive
-    const perFrame = Math.max(1000, Math.floor(clearCount / (desiredMs / 16))); // larger batch per frame
+    const desiredMs = 700; // faster when adjusting aggressively
+    const perFrame = Math.max(1200, Math.floor(clearCount / (desiredMs / 16))); // larger batch per frame
     let pos = 0;
 
     function step() {
