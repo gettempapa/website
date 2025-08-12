@@ -566,6 +566,36 @@ canvas {
     background: rgba(72, 219, 251, 0.2);
 }
 
+/* Demon Walker sprite */
+.walker {
+    position: fixed;
+    left: 50%;
+    top: 60%;
+    transform: translate(-50%, -100%) scale(1);
+    z-index: 5; /* above ripples and feathers */
+    pointer-events: none;
+    will-change: transform, left, top;
+}
+
+.walker-image {
+    display: block;
+    width: 120px; /* base size at foreground */
+    height: auto;
+    filter: drop-shadow(0 8px 10px rgba(0,0,0,0.35));
+}
+
+.walker-shadow {
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    transform: translate(-50%, -50%) scale(1, 1);
+    width: 120px;
+    height: 24px;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0) 70%);
+    filter: blur(2px);
+    opacity: 0.7;
+}
+
 /* Floating Feathers Layer */
 .terminal-container::after {
     content: '';

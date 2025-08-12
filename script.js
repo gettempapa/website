@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add some retro effects
     addRetroEffects();
+
+    // Create demon walker
+    createDemonWalker();
 });
 
 function initializeTerminal() {
@@ -104,6 +107,13 @@ function setupKeyboardNavigation() {
     }
     
     document.addEventListener('keydown', function(e) {
+        // If walker exists, allow arrow keys to control movement
+        const walker = document.getElementById('walker');
+        if (walker && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+            moveWalker(e.key);
+            return;
+        }
         switch(e.key) {
             case 'ArrowRight':
                 e.preventDefault();
@@ -177,6 +187,74 @@ function addRetroEffects() {
     
     // Add typing effect to some elements
     addTypingEffect();
+}
+
+// --- Demon Walker ---
+let walkerState = {
+    xPercent: 50, // left position in vw%
+    yPercent: 60, // top position in vh%
+    scale: 1,
+    minScale: 0.6,   // far away
+    maxScale: 1.0,   // near
+    minY: 45,        // closer to top = further away
+    maxY: 70,        // closer to bottom = nearer
+    speed: 1.6       // percent per key press
+};
+
+function createDemonWalker() {
+    const walker = document.getElementById('walker');
+    if (!walker) return;
+
+    // Initialize position
+    applyWalkerTransform();
+
+    // Gentle idle bobbing
+    let t = 0;
+    setInterval(() => {
+        t += 0.05;
+        const bob = Math.sin(t) * 0.3;
+        walker.style.transform = `translate(-50%, -100%) scale(${walkerState.scale + bob * 0.01})`;
+    }, 50);
+}
+
+function moveWalker(key) {
+    // Horizontal movement
+    if (key === 'ArrowLeft') walkerState.xPercent -= walkerState.speed;
+    if (key === 'ArrowRight') walkerState.xPercent += walkerState.speed;
+    // Vertical movement (affects perspective scale)
+    if (key === 'ArrowUp') walkerState.yPercent -= walkerState.speed;
+    if (key === 'ArrowDown') walkerState.yPercent += walkerState.speed;
+
+    // Clamp bounds
+    walkerState.xPercent = Math.max(5, Math.min(95, walkerState.xPercent));
+    walkerState.yPercent = Math.max(walkerState.minY, Math.min(walkerState.maxY, walkerState.yPercent));
+
+    // Map yPercent to scale: higher (toward minY) => smaller scale
+    const yRange = walkerState.maxY - walkerState.minY; // e.g., 25
+    const yT = (walkerState.yPercent - walkerState.minY) / yRange; // 0..1
+    walkerState.scale = walkerState.minScale + yT * (walkerState.maxScale - walkerState.minScale);
+
+    applyWalkerTransform();
+}
+
+function applyWalkerTransform() {
+    const walker = document.getElementById('walker');
+    if (!walker) return;
+
+    walker.style.left = walkerState.xPercent + 'vw';
+    walker.style.top = walkerState.yPercent + 'vh';
+    walker.style.transform = `translate(-50%, -100%) scale(${walkerState.scale})`;
+
+    // Shadow scaling and opacity based on scale
+    const shadow = walker.querySelector('.walker-shadow');
+    if (shadow) {
+        const shadowScaleX = 0.6 + walkerState.scale * 0.6; // wider when closer
+        const shadowScaleY = 0.6 - (walkerState.scale - walkerState.minScale) * 0.35; // slightly flatter when nearer
+        const opacity = 0.45 + (walkerState.scale - walkerState.minScale) * 0.4;
+        shadow.style.transform = `translate(-50%, -50%) scale(${shadowScaleX}, ${Math.max(0.35, shadowScaleY)})`;
+        shadow.style.opacity = Math.min(0.9, Math.max(0.25, opacity));
+        shadow.style.width = (120 * walkerState.scale) + 'px';
+    }
 }
 
 function createParticleRain() {
