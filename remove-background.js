@@ -1,5 +1,12 @@
 // Client-side background remover with edge flood-fill + near-white detection
 (function() {
+  // Prevent browser from opening dropped files in a new tab
+  ['dragenter','dragover','dragleave','drop'].forEach(evt => {
+    window.addEventListener(evt, (e) => {
+      e.preventDefault();
+    });
+  });
+
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
   const origImg = document.getElementById('orig');
@@ -33,6 +40,12 @@
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault(); dropZone.classList.remove('dragover');
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  });
+  // Also accept drop anywhere on the page
+  window.addEventListener('drop', (e) => {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
   });
