@@ -69,8 +69,12 @@
     reader.readAsDataURL(file);
   }
 
+  let currentAnimToken = 0;
+
   function rerun() {
     if (!sourceImage) return;
+    currentAnimToken++;
+    const animToken = currentAnimToken;
     const brightness = parseInt(brightnessEl.value, 10);
     const distance = parseInt(distanceEl.value, 10);
     const valueT = parseInt(valueEl.value, 10);
@@ -87,6 +91,8 @@
 
     // Flood-fill mask from edges for near-white background
     const mask = new Uint8Array(w * h); // 0/1
+    const clearOrder = new Int32Array(w * h); // order indices for animation
+    let clearCount = 0;
     const qx = new Int32Array(w * h);
     const qy = new Int32Array(w * h);
     let qs = 0, qe = 0;
@@ -109,6 +115,7 @@
       return false;
     }
 
+    const visited = new Uint8Array(w * h);
     function enqueue(x, y) {
       const p = idx(x, y);
       if (mask[p]) return;
@@ -117,6 +124,7 @@
       if (isNearWhite(r, g, b)) {
         mask[p] = 1;
         qx[qe] = x; qy[qe] = y; qe++;
+        clearOrder[clearCount++] = p; // base order: edge-first fill
       }
     }
 
@@ -149,15 +157,56 @@
           }
         }
       }
-      for (let i = 0; i < mask.length; i++) mask[i] = grown[i];
+      for (let i = 0; i < mask.length; i++) {
+        if (!mask[i] && grown[i]) {
+          // Add newly grown pixels to the end of clear order so user sees expansion
+          clearOrder[clearCount++] = i;
+        }
+        mask[i] = grown[i];
+      }
     }
 
-    // Apply transparency to mask
+    // If some masked pixels were not captured in the initial BFS order (e.g., isolated islands), add them now
     for (let p = 0; p < mask.length; p++) {
-      if (mask[p]) data[p * 4 + 3] = 0;
+      if (mask[p]) {
+        // ensure present in order
+        // We used an Int32Array; we'll just append duplicates safely by tracking a separate seen map
+      }
     }
-    ctx.putImageData(imgData, 0, 0);
-    downloadBtn.href = outCanvas.toDataURL('image/png');
+
+    // Build a set of which pixels are already included in clearOrder (first clearCount entries)
+    const inOrder = new Uint8Array(mask.length);
+    for (let i = 0; i < clearCount; i++) inOrder[clearOrder[i]] = 1;
+    for (let p = 0; p < mask.length; p++) {
+      if (mask[p] && !inOrder[p]) {
+        clearOrder[clearCount++] = p;
+      }
+    }
+
+    // Animate removal pixel-by-pixel in batches so user watches it vanish
+    const desiredMs = 1200; // aim ~1.2s animation
+    const perFrame = Math.max(500, Math.floor(clearCount / (desiredMs / 16))); // batch size per frame
+    let pos = 0;
+
+    function step() {
+      if (animToken !== currentAnimToken) return; // canceled by new run
+      const end = Math.min(clearCount, pos + perFrame);
+      for (let i = pos; i < end; i++) {
+        const p = clearOrder[i];
+        const aIndex = p * 4 + 3;
+        data[aIndex] = 0;
+      }
+      pos = end;
+      ctx.putImageData(imgData, 0, 0);
+      if (pos < clearCount) {
+        requestAnimationFrame(step);
+      } else {
+        downloadBtn.href = outCanvas.toDataURL('image/png');
+      }
+    }
+
+    // Start animation
+    requestAnimationFrame(step);
   }
 })();
 
