@@ -109,6 +109,7 @@
   // Advanced background detection using multiple techniques
   function isBackgroundPixel(r, g, b, params) {
     const [h, s, v] = rgbToHsv(r, g, b);
+    const brightness = (r + g + b) / 3;
     
     // 1. HSV-based detection (most reliable for white/light backgrounds)
     if (v >= params.valueThreshold && s <= params.saturationThreshold) {
@@ -116,7 +117,6 @@
     }
     
     // 2. RGB brightness + distance to white
-    const brightness = (r + g + b) / 3;
     if (brightness >= params.brightnessThreshold) {
       const distToWhite = Math.sqrt((255-r)**2 + (255-g)**2 + (255-b)**2);
       if (distToWhite <= params.distanceThreshold) {
@@ -128,6 +128,25 @@
     const maxDiff = Math.max(Math.abs(r-g), Math.abs(g-b), Math.abs(b-r));
     if (maxDiff <= params.uniformThreshold && brightness >= params.uniformBrightness) {
       return true;
+    }
+    
+    // 4. EXTREME MODE: At high aggressiveness, remove almost everything except very dark colors
+    const aggr = (params.extremeValueThreshold - 150) / 105; // Reverse calculate aggressiveness
+    if (aggr > 0.8) { // Only apply extreme mode at 80%+ aggressiveness
+      // Remove anything that's not very dark
+      if (brightness >= params.extremeBrightnessThreshold) {
+        return true;
+      }
+      
+      // Remove anything with significant saturation (except very dark colors)
+      if (s >= params.extremeSaturationThreshold && brightness > 50) {
+        return true;
+      }
+      
+      // Remove anything with high value (HSV) except very dark
+      if (v >= params.extremeValueThreshold && brightness > 50) {
+        return true;
+      }
     }
     
     return false;
@@ -242,14 +261,18 @@
     // Extreme parameter mapping based on aggressiveness
     const params = {
       // At 0: Very conservative (only pure white)
-      // At 100: Extremely aggressive (removes most light colors)
+      // At 100: Outrageously aggressive (removes almost everything except very dark colors)
       brightnessThreshold: Math.round(200 + aggr * 55), // 200-255
-      distanceThreshold: Math.round(20 + aggr * 180),   // 20-200
+      distanceThreshold: Math.round(20 + aggr * 235),   // 20-255 (much larger range)
       valueThreshold: Math.round(200 + aggr * 55),      // 200-255
-      saturationThreshold: 0.05 + aggr * 0.45,          // 0.05-0.50
-      uniformThreshold: Math.round(5 + aggr * 45),      // 5-50
+      saturationThreshold: 0.05 + aggr * 0.95,          // 0.05-1.00 (much higher saturation tolerance)
+      uniformThreshold: Math.round(5 + aggr * 95),      // 5-100 (much larger uniform tolerance)
       uniformBrightness: Math.round(180 + aggr * 75),   // 180-255
-      morphologicalRadius: Math.round(1 + aggr * 3)     // 1-4
+      morphologicalRadius: Math.round(1 + aggr * 5),    // 1-6 (larger morphological operations)
+      // Add new extreme parameters for 100% aggressiveness
+      extremeValueThreshold: Math.round(150 + aggr * 105), // 150-255 (removes even darker colors)
+      extremeSaturationThreshold: 0.02 + aggr * 0.98,      // 0.02-1.00 (removes almost all saturation levels)
+      extremeBrightnessThreshold: Math.round(150 + aggr * 105) // 150-255 (removes even darker brightness)
     };
     
     // Update slider displays to show current effective values
@@ -261,6 +284,13 @@
     dOut.textContent = params.distanceThreshold;
     vOut.textContent = params.valueThreshold;
     sOut.textContent = params.saturationThreshold.toFixed(2);
+    
+    // Show extreme mode indicator
+    if (aggr > 0.8) {
+      aggrOut.textContent = aggrEl.value + " (EXTREME)";
+    } else {
+      aggrOut.textContent = aggrEl.value;
+    }
 
     const w = sourceImage.naturalWidth;
     const h = sourceImage.naturalHeight;
