@@ -332,12 +332,113 @@ class WorkingMindBlowingWater {
 
     addEventListeners() {
         console.log('🎮 Setting up dramatic event listeners...');
-        
+
         // Track cursor position for continuous ripple effects
         let lastCursorTime = 0;
         let cursorTrail = [];
         let morphShapeIndex = 0;
-        
+        let activeTouches = new Map(); // Track multiple touch points
+
+        // Enhanced touch handling for realistic water dragging
+        const handleTouchInteraction = (touches, isActive) => {
+            const currentTime = Date.now();
+
+            for (let i = 0; i < touches.length; i++) {
+                const touch = touches[i];
+                const touchId = touch.identifier;
+
+                // Convert touch to normalized coordinates
+                const rect = this.renderer.domElement.getBoundingClientRect();
+                const x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+
+                // Get previous touch position for velocity calculation
+                const lastTouch = activeTouches.get(touchId);
+                let velocityX = 0;
+                let velocityY = 0;
+
+                if (lastTouch) {
+                    velocityX = x - lastTouch.x;
+                    velocityY = y - lastTouch.y;
+                }
+
+                // Update touch tracking
+                activeTouches.set(touchId, { x, y, time: currentTime });
+
+                // Create water interaction
+                this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+                const intersects = this.raycaster.intersectObject(this.waterMesh);
+
+                if (intersects.length > 0) {
+                    const point = intersects[0].point;
+                    const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+
+                    // Enhanced strength for touch - make it feel like dragging through water
+                    const touchStrength = Math.min(3.0 + speed * 8, 6.0);
+
+                    this.waterMesh.material.uniforms.mouseX.value = point.x;
+                    this.waterMesh.material.uniforms.mouseY.value = point.z;
+                    this.waterMesh.material.uniforms.mouseStrength.value = touchStrength;
+                    this.waterMesh.material.uniforms.mouseVelocity.value = new THREE.Vector2(
+                        velocityX * 25,
+                        velocityY * 25
+                    );
+
+                    // Create continuous ripples for touch
+                    if (speed > 0.01) {
+                        this.createRippleAtPoint(x, y, touchStrength * 0.7);
+                        this.createSplashParticles(point.x, point.z, Math.floor(speed * 10 + 3));
+                    }
+
+                    // Create morphing shape for active touch
+                    if (isActive && speed > 0.02) {
+                        this.createMorphingShape(point.x, point.z, touchStrength * 0.5);
+                    }
+                }
+            }
+
+            // Smooth decay
+            gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
+                value: 0,
+                duration: 1.5,
+                ease: "power3.out"
+            });
+        };
+
+        // Touch event listeners
+        document.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            handleTouchInteraction(event.touches, true);
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (event) => {
+            event.preventDefault();
+            handleTouchInteraction(event.touches, true);
+        }, { passive: false });
+
+        document.addEventListener('touchend', (event) => {
+            event.preventDefault();
+            // Remove ended touches from tracking
+            const remainingTouchIds = new Set();
+            for (let i = 0; i < event.touches.length; i++) {
+                remainingTouchIds.add(event.touches[i].identifier);
+            }
+
+            // Clean up touches that ended
+            for (let [touchId] of activeTouches) {
+                if (!remainingTouchIds.has(touchId)) {
+                    activeTouches.delete(touchId);
+                }
+            }
+
+            handleTouchInteraction(event.touches, false);
+        }, { passive: false });
+
+        document.addEventListener('touchcancel', (event) => {
+            event.preventDefault();
+            activeTouches.clear();
+        }, { passive: false });
+
         // Dramatic mouse tracking with enhanced ripple effects
         document.addEventListener('mousemove', (event) => {
             this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -439,23 +540,6 @@ class WorkingMindBlowingWater {
             }
         });
 
-        // Add button click listeners for morphing shapes
-        document.addEventListener('click', (event) => {
-            // Check if clicking on navigation buttons
-            const navItem = event.target.closest('.nav-item');
-            if (navItem) {
-                const rect = navItem.getBoundingClientRect();
-                const centerX = (rect.left + rect.right) / 2;
-                const centerY = (rect.top + rect.bottom) / 2;
-                
-                // Convert screen coordinates to world coordinates
-                const worldX = (centerX / window.innerWidth) * 2 - 1;
-                const worldY = -(centerY / window.innerHeight) * 2 + 1;
-                
-                // Create morphing shape at button location
-                this.createButtonMorphingShape(worldX, worldY);
-            }
-        });
 
         // Responsive window resize
         window.addEventListener('resize', () => {
@@ -595,32 +679,6 @@ class WorkingMindBlowingWater {
         });
     }
 
-    createButtonMorphingShape(x, y) {
-        console.log(`🔘 Creating button morphing shape at (${x}, ${y})`);
-        
-        // Convert screen coordinates to world coordinates
-        this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
-        const intersects = this.raycaster.intersectObject(this.waterMesh);
-        
-        if (intersects.length > 0) {
-            const point = intersects[0].point;
-            
-            // Create a special button morphing shape
-            const morphShape = Math.random();
-            const morphRadius = 6;
-            
-            this.waterMesh.material.uniforms.morphShape.value = morphShape;
-            this.waterMesh.material.uniforms.morphCenter.value = new THREE.Vector3(point.x, 0, point.z);
-            this.waterMesh.material.uniforms.morphRadius.value = morphRadius;
-            
-            // Animate the button morphing shape
-            gsap.to(this.waterMesh.material.uniforms.morphRadius, {
-                value: 0,
-                duration: 2.5,
-                ease: "power3.out"
-            });
-        }
-    }
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
