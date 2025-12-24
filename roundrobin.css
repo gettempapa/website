@@ -726,6 +726,31 @@ body {
     text-decoration: underline;
 }
 
+/* Workflow Preview */
+.workflow-preview {
+    background: #f7fafc;
+    padding: 16px;
+    border-radius: 6px;
+    margin-top: 16px;
+    border-left: 4px solid #4299e1;
+}
+
+.workflow-preview h4 {
+    font-size: 14px;
+    color: #2d3748;
+    margin-bottom: 12px;
+}
+
+.workflow-preview-item {
+    font-size: 13px;
+    color: #4a5568;
+    margin-bottom: 6px;
+}
+
+.workflow-preview-item strong {
+    color: #2d3748;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .main-nav {

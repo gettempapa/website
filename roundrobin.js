@@ -7,6 +7,7 @@ class RoundRobinApp {
         this.workflows = this.loadFromStorage('workflows') || [];
         this.salesReps = this.generateSalesReps();
         this.currentUser = 'System'; // In a real app, this would be the logged-in user
+        this.currentContactId = null; // Track current contact being viewed
 
         // Filter state
         this.filterState = {
@@ -77,9 +78,13 @@ class RoundRobinApp {
         document.getElementById('contact-form').addEventListener('submit', (e) => this.handleCreateContact(e));
         document.getElementById('group-form').addEventListener('submit', (e) => this.handleCreateGroup(e));
         document.getElementById('workflow-form').addEventListener('submit', (e) => this.handleCreateWorkflow(e));
+        document.getElementById('assign-workflow-form').addEventListener('submit', (e) => this.handleAssignWorkflow(e));
 
         // Add condition button
         document.getElementById('add-condition-btn').addEventListener('click', () => this.addCondition());
+
+        // Workflow assignment
+        document.getElementById('assign-workflow-select').addEventListener('change', (e) => this.showWorkflowPreview(e.target.value));
 
         // Filter controls
         document.getElementById('contact-search').addEventListener('input', (e) => {
@@ -368,6 +373,9 @@ class RoundRobinApp {
         const contact = this.contacts.find(c => c.id === contactId);
         if (!contact) return;
 
+        // Store current contact ID
+        this.currentContactId = contactId;
+
         // Populate contact details
         document.getElementById('contact-details-name').textContent = `${contact.firstName} ${contact.lastName}`;
         document.getElementById('detail-first-name').textContent = contact.firstName;
@@ -424,7 +432,131 @@ class RoundRobinApp {
             }).join('');
         }
 
+        // Set up assign workflow button listener (remove old listener first)
+        const assignBtn = document.getElementById('assign-workflow-btn');
+        const newAssignBtn = assignBtn.cloneNode(true);
+        assignBtn.parentNode.replaceChild(newAssignBtn, assignBtn);
+        newAssignBtn.addEventListener('click', () => this.openAssignWorkflowModal());
+
         this.openModal('contact-details-modal');
+    }
+
+    // Workflow Assignment Methods
+    openAssignWorkflowModal() {
+        // Populate workflows dropdown
+        const select = document.getElementById('assign-workflow-select');
+
+        if (this.workflows.length === 0) {
+            select.innerHTML = '<option value="">No workflows available - create one first</option>';
+            select.disabled = true;
+        } else {
+            select.disabled = false;
+            select.innerHTML = '<option value="">Choose a workflow...</option>' +
+                this.workflows.map(workflow => `
+                    <option value="${workflow.id}">${workflow.name}</option>
+                `).join('');
+        }
+
+        // Hide preview
+        document.getElementById('workflow-preview').style.display = 'none';
+
+        this.openModal('assign-workflow-modal');
+    }
+
+    showWorkflowPreview(workflowId) {
+        const preview = document.getElementById('workflow-preview');
+
+        if (!workflowId) {
+            preview.style.display = 'none';
+            return;
+        }
+
+        const workflow = this.workflows.find(w => w.id === workflowId);
+        if (!workflow) return;
+
+        const group = this.groups.find(g => g.id === workflow.groupId);
+        const groupName = group ? group.name : 'Unknown Group';
+        const memberCount = group ? group.members.length : 0;
+
+        preview.innerHTML = `
+            <h4>Workflow Details</h4>
+            <div class="workflow-preview-item">
+                <strong>Routes to:</strong> ${groupName} (${memberCount} members)
+            </div>
+            <div class="workflow-preview-item">
+                <strong>Conditions:</strong>
+            </div>
+            ${workflow.conditions.map(condition => `
+                <div class="workflow-preview-item" style="padding-left: 16px;">
+                    • ${this.formatCondition(condition)}
+                </div>
+            `).join('')}
+            <div class="workflow-preview-item" style="margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px; color: #856404;">
+                ℹ️ The contact will be assigned using round robin to the next available member in this group.
+            </div>
+        `;
+        preview.style.display = 'block';
+    }
+
+    handleAssignWorkflow(e) {
+        e.preventDefault();
+
+        const workflowId = document.getElementById('assign-workflow-select').value;
+        if (!workflowId) {
+            alert('Please select a workflow');
+            return;
+        }
+
+        const contact = this.contacts.find(c => c.id === this.currentContactId);
+        if (!contact) {
+            alert('Contact not found');
+            return;
+        }
+
+        const workflow = this.workflows.find(w => w.id === workflowId);
+        if (!workflow) {
+            alert('Workflow not found');
+            return;
+        }
+
+        const group = this.groups.find(g => g.id === workflow.groupId);
+        if (!group) {
+            alert('Group not found');
+            return;
+        }
+
+        // Assign to next owner in group
+        const newOwner = this.getNextOwnerInGroup(group);
+        contact.owner = newOwner;
+
+        // Update modified timestamp
+        contact.modifiedAt = new Date().toISOString();
+        contact.modifiedBy = this.currentUser;
+
+        // Add to workflow history
+        if (!contact.workflowHistory) {
+            contact.workflowHistory = [];
+        }
+
+        contact.workflowHistory.push({
+            workflowId: workflow.id,
+            workflowName: `${workflow.name} (Manual)`,
+            groupId: group.id,
+            groupName: group.name,
+            assignedTo: newOwner,
+            executedAt: new Date().toISOString()
+        });
+
+        // Save changes
+        this.saveToStorage('contacts', this.contacts);
+
+        // Close modal and refresh contact details
+        this.closeModal('assign-workflow-modal');
+        this.renderContacts();
+        this.populateFilterDropdowns();
+
+        // Refresh the contact details view
+        this.showContactDetails(this.currentContactId);
     }
 
     // Group Management

@@ -292,11 +292,44 @@
                     </div>
                 </div>
                 <div class="detail-section workflow-section">
-                    <h4>Workflow History</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="margin: 0;">Workflow History</h4>
+                        <button id="assign-workflow-btn" class="btn btn-primary btn-sm">+ Assign to Workflow</button>
+                    </div>
                     <div id="detail-workflow-history" class="workflow-history">
                         <!-- Workflow history will be inserted here -->
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Assign Workflow -->
+    <div id="assign-workflow-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Assign Contact to Workflow</h3>
+                <span class="close" data-modal="assign-workflow-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="color: #4a5568; margin-bottom: 20px;">
+                    Select a workflow to assign this contact. The contact will be routed through the workflow's group using round robin assignment.
+                </p>
+                <form id="assign-workflow-form">
+                    <div class="form-group">
+                        <label for="assign-workflow-select">Select Workflow *</label>
+                        <select id="assign-workflow-select" required>
+                            <option value="">Choose a workflow...</option>
+                        </select>
+                    </div>
+                    <div id="workflow-preview" class="workflow-preview" style="display: none;">
+                        <!-- Workflow details will be shown here -->
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="assign-workflow-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Assign to Workflow</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
