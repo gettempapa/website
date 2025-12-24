@@ -56,6 +56,7 @@ class WorkingMindBlowingWater {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         // Add to DOM
+        this.renderer.domElement.setAttribute('data-engine', 'three.js');
         this.renderer.domElement.style.position = 'fixed';
         this.renderer.domElement.style.top = '0';
         this.renderer.domElement.style.left = '0';
@@ -68,9 +69,9 @@ class WorkingMindBlowingWater {
 
     createDramaticWater() {
         console.log('🌊 Creating dramatic water with visible effects...');
-        
-        // High-resolution water geometry
-        const geometry = new THREE.PlaneGeometry(100, 100, 128, 128);
+
+        // Optimized water geometry - reduced from 128x128 to 64x64 for better performance
+        const geometry = new THREE.PlaneGeometry(100, 100, 64, 64);
         geometry.rotateX(-Math.PI / 2);
 
         // Dramatic water shader that actually shows effects
@@ -271,9 +272,9 @@ class WorkingMindBlowingWater {
 
     createParticleSystem() {
         console.log('✨ Creating dramatic particle system...');
-        
-        // Create ambient particles
-        for (let i = 0; i < 50; i++) {
+
+        // Create ambient particles - reduced from 50 to 25 for better performance
+        for (let i = 0; i < 25; i++) {
             const particle = new THREE.Mesh(
                 new THREE.SphereGeometry(0.02, 4, 4),
                 new THREE.MeshBasicMaterial({
@@ -524,9 +525,9 @@ class WorkingMindBlowingWater {
 
     createDramaticSplash(x, z) {
         console.log(`💦 Creating dramatic splash at (${x}, ${z})`);
-        
-        // Create many particles for dramatic effect
-        for (let i = 0; i < 30; i++) {
+
+        // Create particles for dramatic effect - reduced from 30 to 20 for better performance
+        for (let i = 0; i < 20; i++) {
             const particle = new THREE.Mesh(
                 new THREE.SphereGeometry(0.1, 8, 8),
                 new THREE.MeshBasicMaterial({

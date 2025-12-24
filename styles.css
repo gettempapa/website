@@ -16,14 +16,14 @@ body {
     position: relative;
 }
 
-/* Ensure water simulation canvas is visible and interactive */
-canvas {
+/* Ensure Three.js water simulation canvas is visible and interactive */
+canvas[data-engine="three.js"] {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    z-index: 0 !important;
+    z-index: 1 !important;
     pointer-events: auto !important;
 }
 
