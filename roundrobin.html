@@ -30,16 +30,32 @@
                 <button id="add-contact-btn" class="btn btn-primary">+ Create Contact</button>
             </div>
 
+            <!-- Search and Filter Controls -->
+            <div class="filter-controls">
+                <div class="search-box">
+                    <input type="text" id="contact-search" placeholder="Search contacts by name, email, or company..." class="search-input">
+                </div>
+                <div class="filter-row">
+                    <select id="filter-owner" class="filter-select">
+                        <option value="">All Owners</option>
+                    </select>
+                    <select id="filter-company" class="filter-select">
+                        <option value="">All Companies</option>
+                    </select>
+                    <button id="clear-filters-btn" class="btn btn-secondary btn-sm">Clear Filters</button>
+                </div>
+            </div>
+
             <div class="contacts-list">
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>First Name</th>
-                            <th>Last Name</th>
+                            <th>Name</th>
                             <th>Email</th>
                             <th>Company</th>
                             <th>Owner</th>
                             <th>Created</th>
+                            <th>Last Modified</th>
                         </tr>
                     </thead>
                     <tbody id="contacts-tbody">
@@ -219,6 +235,68 @@
                         <button type="submit" class="btn btn-primary">Create Workflow</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Contact Details -->
+    <div id="contact-details-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="contact-details-name">Contact Details</h3>
+                <span class="close" data-modal="contact-details-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="contact-details-grid">
+                    <div class="detail-section">
+                        <h4>Contact Information</h4>
+                        <div class="detail-item">
+                            <label>First Name:</label>
+                            <span id="detail-first-name"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Last Name:</label>
+                            <span id="detail-last-name"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Email:</label>
+                            <span id="detail-email"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Company:</label>
+                            <span id="detail-company"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Owner:</label>
+                            <span id="detail-owner"></span>
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <h4>Metadata</h4>
+                        <div class="detail-item">
+                            <label>Created:</label>
+                            <span id="detail-created-at"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Created By:</label>
+                            <span id="detail-created-by"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Last Modified:</label>
+                            <span id="detail-modified-at"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Modified By:</label>
+                            <span id="detail-modified-by"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-section workflow-section">
+                    <h4>Workflow History</h4>
+                    <div id="detail-workflow-history" class="workflow-history">
+                        <!-- Workflow history will be inserted here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
