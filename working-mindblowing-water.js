@@ -70,8 +70,8 @@ class WorkingMindBlowingWater {
     createDramaticWater() {
         console.log('🌊 Creating dramatic water with visible effects...');
 
-        // Optimized water geometry - reduced from 128x128 to 64x64 for better performance
-        const geometry = new THREE.PlaneGeometry(100, 100, 64, 64);
+        // Smooth, high-resolution water geometry to eliminate grid pattern
+        const geometry = new THREE.PlaneGeometry(100, 100, 128, 128);
         geometry.rotateX(-Math.PI / 2);
 
         // Dramatic water shader that actually shows effects
@@ -108,11 +108,14 @@ class WorkingMindBlowingWater {
                     return value;
                 }
                 
-                // Realistic ripple function
+                // Realistic ripple function with proper wave propagation
                 float ripple(vec2 pos, vec2 center, float time, float strength) {
                     float dist = distance(pos, center);
-                    float wave = sin(dist * 10.0 - time * 3.0) * exp(-dist * 0.5) * strength;
-                    return wave * exp(-time * 2.0);
+                    // Create expanding wave rings
+                    float wave = sin(dist * 8.0 - time * 4.0) * exp(-dist * 0.3);
+                    // Add secondary smaller ripples
+                    wave += sin(dist * 16.0 - time * 6.0) * 0.3 * exp(-dist * 0.5);
+                    return wave * strength * exp(-time * 1.5);
                 }
                 
                 // Globular morphing function
@@ -159,31 +162,31 @@ class WorkingMindBlowingWater {
                     float elevation = wave1 * 0.15 + wave2 * 0.1 + wave3 * 0.05;
                     vElevation = elevation;
 
-                    // Gentle, realistic interaction
+                    // Realistic water interaction with visible displacement
                     float distanceToMouse = distance(position.xz, vec2(mouseX, mouseY));
-                    float mouseInfluence = smoothstep(15.0, 0.0, distanceToMouse) * mouseStrength;
+                    float mouseInfluence = smoothstep(12.0, 0.0, distanceToMouse) * mouseStrength;
 
-                    // Subtle ripple effect
+                    // Visible ripple waves
                     float rippleEffect = ripple(position.xz, vec2(mouseX, mouseY), time, mouseStrength);
-                    elevation += mouseInfluence * 0.8 + rippleEffect * 0.6;
+                    elevation += mouseInfluence * 1.5 + rippleEffect * 1.2;
 
-                    // Gentle velocity-based disturbance
-                    float velocityEffect = length(mouseVelocity) * smoothstep(20.0, 0.0, distanceToMouse) * 0.15;
+                    // Velocity creates wake effect
+                    float velocityEffect = length(mouseVelocity) * smoothstep(18.0, 0.0, distanceToMouse) * 0.4;
                     elevation += velocityEffect;
 
-                    // Subtle morphing shapes
+                    // Smooth water displacement from touch
                     float morphEffect = globularMorph(position.xz, morphCenter, morphRadius, morphShape);
-                    elevation += morphEffect * 2.0 * mouseStrength;
+                    elevation += morphEffect * 3.0 * mouseStrength;
                     
                     // Update position
                     vec3 newPosition = position;
                     newPosition.y += elevation;
                     
-                    // Calculate normal for realistic lighting
-                    float ddx = fbm(vec2((position.x + 1.0) * 0.01 + time * 0.1, position.z * 0.01 + time * 0.08)) - wave1;
-                    float ddz = fbm(vec2(position.x * 0.01 + time * 0.1, (position.z + 1.0) * 0.01 + time * 0.08)) - wave1;
-                    
-                    vec3 normal = normalize(vec3(-ddx * 1.0, 1.0, -ddz * 1.0));
+                    // Calculate smooth normal for realistic lighting
+                    float ddx = fbm(vec2((position.x + 0.5) * 0.01 + time * 0.1, position.z * 0.01 + time * 0.08)) - wave1;
+                    float ddz = fbm(vec2(position.x * 0.01 + time * 0.1, (position.z + 0.5) * 0.01 + time * 0.08)) - wave1;
+
+                    vec3 normal = normalize(vec3(-ddx * 0.3, 1.0, -ddz * 0.3));
                     vNormal = normal;
                     
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
@@ -204,38 +207,40 @@ class WorkingMindBlowingWater {
                 varying float vElevation;
                 
                 void main() {
-                    // Realistic water color with depth
-                    vec3 color = mix(waterColor, foamColor, smoothstep(0.2, 0.8, vElevation));
-                    
-                    // Add depth variation
-                    float depth = 1.0 - smoothstep(0.0, 50.0, length(vPosition.xz));
-                    color = mix(color, waterColor * 0.4, depth);
-                    
-                    // Realistic fresnel effect
+                    // Smooth, realistic water color
+                    vec3 baseColor = mix(waterColor, foamColor, smoothstep(-0.1, 0.3, vElevation));
+
+                    // Smooth depth variation
+                    float depth = 1.0 - smoothstep(0.0, 60.0, length(vPosition.xz));
+                    baseColor = mix(baseColor, waterColor * 0.6, depth * 0.5);
+
+                    // Strong fresnel for water-like appearance
                     vec3 viewDirection = normalize(cameraPosition - vPosition);
-                    float fresnel = pow(1.0 - max(dot(viewDirection, vNormal), 0.0), 3.0);
-                    color = mix(color, vec3(1.0), fresnel * 0.4);
-                    
-                    // Gentle sparkle effect
-                    float sparkle = sin(vPosition.x * 20.0 + time * 2.0) * sin(vPosition.z * 20.0 + time * 1.8);
-                    sparkle = smoothstep(0.95, 1.0, sparkle);
-                    color += sparkle * 0.2;
-                    
-                    // Subtle caustics
-                    float caustic = sin(vPosition.x * 10.0 + time * 0.8) * cos(vPosition.z * 10.0 + time * 0.6);
-                    color += caustic * 0.1;
-                    
-                    // Morph shape color variation
+                    float fresnel = pow(1.0 - max(dot(viewDirection, vNormal), 0.0), 2.0);
+                    vec3 color = mix(baseColor, vec3(0.9, 0.95, 1.0), fresnel * 0.6);
+
+                    // Smooth, continuous sparkle (not grid-aligned)
+                    float sparkle = sin(vPosition.x * 15.0 + time * 1.5 + vPosition.z * 7.0) *
+                                   cos(vPosition.z * 12.0 + time * 1.2 - vPosition.x * 5.0);
+                    sparkle = smoothstep(0.92, 1.0, sparkle);
+                    color += vec3(1.0) * sparkle * 0.3;
+
+                    // Smooth caustics
+                    float caustic = sin(vPosition.x * 8.0 + time * 0.7 + vPosition.z * 3.0) *
+                                   cos(vPosition.z * 6.0 + time * 0.5 - vPosition.x * 4.0);
+                    color += vec3(0.8, 0.9, 1.0) * caustic * 0.08;
+
+                    // Subtle interaction highlight
                     float morphDist = distance(vPosition.xz, morphCenter.xz);
                     if (morphDist < morphRadius) {
                         float morphIntensity = smoothstep(morphRadius, 0.0, morphDist);
-                        vec3 morphColor = mix(vec3(0.0, 0.8, 1.0), vec3(0.0, 1.0, 0.8), morphShape);
-                        color = mix(color, morphColor, morphIntensity * 0.3);
+                        vec3 interactionColor = mix(vec3(0.7, 0.9, 1.0), vec3(0.8, 1.0, 1.0), morphShape);
+                        color = mix(color, interactionColor, morphIntensity * 0.2);
                     }
-                    
-                    // Gentle glow
-                    color += vec3(0.05, 0.15, 0.25) * 0.2;
-                    
+
+                    // Ambient blue glow
+                    color += vec3(0.05, 0.1, 0.15) * 0.3;
+
                     gl_FragColor = vec4(color, transparency);
                 }
             `
