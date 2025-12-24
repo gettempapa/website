@@ -73,6 +73,7 @@ class RoundRobinApp {
         document.getElementById('add-contact-btn').addEventListener('click', () => this.openModal('contact-modal'));
         document.getElementById('add-group-btn').addEventListener('click', () => this.openModal('group-modal'));
         document.getElementById('add-workflow-btn').addEventListener('click', () => this.openModal('workflow-modal'));
+        document.getElementById('assign-workflow-btn').addEventListener('click', () => this.openAssignWorkflowModal());
 
         // Form submissions
         document.getElementById('contact-form').addEventListener('submit', (e) => this.handleCreateContact(e));
@@ -431,12 +432,6 @@ class RoundRobinApp {
                 `;
             }).join('');
         }
-
-        // Set up assign workflow button listener (remove old listener first)
-        const assignBtn = document.getElementById('assign-workflow-btn');
-        const newAssignBtn = assignBtn.cloneNode(true);
-        assignBtn.parentNode.replaceChild(newAssignBtn, assignBtn);
-        newAssignBtn.addEventListener('click', () => this.openAssignWorkflowModal());
 
         this.openModal('contact-details-modal');
     }
