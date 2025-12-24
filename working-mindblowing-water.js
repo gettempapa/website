@@ -150,30 +150,30 @@ class WorkingMindBlowingWater {
                 void main() {
                     vUv = uv;
                     vPosition = position;
-                    
-                    // Create very gentle ambient waves
+
+                    // Subtle ambient waves
                     float wave1 = fbm(vec2(position.x * 0.01 + time * 0.1, position.z * 0.01 + time * 0.08));
                     float wave2 = fbm(vec2(position.x * 0.02 + time * 0.05, position.z * 0.02 + time * 0.12));
                     float wave3 = sin(position.x * 0.1 + time * 0.4) * cos(position.z * 0.1 + time * 0.3);
-                    
-                    float elevation = wave1 * 0.8 + wave2 * 0.4 + wave3 * 0.2;
+
+                    float elevation = wave1 * 0.15 + wave2 * 0.1 + wave3 * 0.05;
                     vElevation = elevation;
-                    
-                    // Realistic mouse interaction with ripple effects
+
+                    // Gentle, realistic interaction
                     float distanceToMouse = distance(position.xz, vec2(mouseX, mouseY));
-                    float mouseInfluence = smoothstep(20.0, 0.0, distanceToMouse) * mouseStrength;
-                    
-                    // Add ripple effect
+                    float mouseInfluence = smoothstep(15.0, 0.0, distanceToMouse) * mouseStrength;
+
+                    // Subtle ripple effect
                     float rippleEffect = ripple(position.xz, vec2(mouseX, mouseY), time, mouseStrength);
-                    elevation += mouseInfluence * 3.0 + rippleEffect * 2.0;
-                    
-                    // Velocity-based disturbance
-                    float velocityEffect = length(mouseVelocity) * smoothstep(25.0, 0.0, distanceToMouse) * 0.5;
+                    elevation += mouseInfluence * 0.8 + rippleEffect * 0.6;
+
+                    // Gentle velocity-based disturbance
+                    float velocityEffect = length(mouseVelocity) * smoothstep(20.0, 0.0, distanceToMouse) * 0.15;
                     elevation += velocityEffect;
-                    
-                    // Add globular morphing shapes
+
+                    // Subtle morphing shapes
                     float morphEffect = globularMorph(position.xz, morphCenter, morphRadius, morphShape);
-                    elevation += morphEffect * 8.0 * mouseStrength;
+                    elevation += morphEffect * 2.0 * mouseStrength;
                     
                     // Update position
                     vec3 newPosition = position;
@@ -373,21 +373,23 @@ class WorkingMindBlowingWater {
                     const point = intersects[0].point;
                     const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
 
-                    // Enhanced strength for touch - make it feel like dragging through water
-                    const touchStrength = Math.min(3.0 + speed * 8, 6.0);
+                    // Gentle, realistic water response
+                    const touchStrength = Math.min(0.5 + speed * 2, 1.5);
 
                     this.waterMesh.material.uniforms.mouseX.value = point.x;
                     this.waterMesh.material.uniforms.mouseY.value = point.z;
                     this.waterMesh.material.uniforms.mouseStrength.value = touchStrength;
                     this.waterMesh.material.uniforms.mouseVelocity.value = new THREE.Vector2(
-                        velocityX * 25,
-                        velocityY * 25
+                        velocityX * 8,
+                        velocityY * 8
                     );
 
-                    // Create continuous ripples for touch
-                    if (speed > 0.01) {
-                        this.createRippleAtPoint(x, y, touchStrength * 0.7);
-                        this.createSplashParticles(point.x, point.z, Math.floor(speed * 10 + 3));
+                    // Create subtle ripples for touch
+                    if (speed > 0.02) {
+                        this.createRippleAtPoint(x, y, touchStrength * 0.3);
+                        if (speed > 0.05) {
+                            this.createSplashParticles(point.x, point.z, Math.floor(speed * 3 + 1));
+                        }
                     }
 
                     // Create morphing shape for active touch
@@ -483,14 +485,14 @@ class WorkingMindBlowingWater {
                     }
                 });
                 
-                // Main cursor ripple
-                const mainStrength = Math.min(2.0, Math.sqrt(this.mouseVelocity.x * this.mouseVelocity.x + this.mouseVelocity.y * this.mouseVelocity.y) * 5);
+                // Gentle mouse interaction
+                const mainStrength = Math.min(0.8, Math.sqrt(this.mouseVelocity.x * this.mouseVelocity.x + this.mouseVelocity.y * this.mouseVelocity.y) * 3);
                 this.waterMesh.material.uniforms.mouseX.value = point.x;
                 this.waterMesh.material.uniforms.mouseY.value = point.z;
                 this.waterMesh.material.uniforms.mouseStrength.value = mainStrength;
                 this.waterMesh.material.uniforms.mouseVelocity.value = new THREE.Vector2(
-                    this.mouseVelocity.x * 15,
-                    this.mouseVelocity.y * 15
+                    this.mouseVelocity.x * 8,
+                    this.mouseVelocity.y * 8
                 );
                 
                 // Create morphing shape effect
@@ -524,18 +526,18 @@ class WorkingMindBlowingWater {
                 const point = intersects[0].point;
                 this.waterMesh.material.uniforms.mouseX.value = point.x;
                 this.waterMesh.material.uniforms.mouseY.value = point.z;
-                this.waterMesh.material.uniforms.mouseStrength.value = 5.0; // Stronger click effect
-                
-                // Create dramatic morphing shape
-                this.createDramaticMorphingShape(point.x, point.z);
-                
-                // Create dramatic splash
-                this.createDramaticSplash(point.x, point.z);
-                
+                this.waterMesh.material.uniforms.mouseStrength.value = 1.2; // Gentle click effect
+
+                // Create subtle morphing shape
+                this.createMorphingShape(point.x, point.z, 0.5);
+
+                // Create gentle splash
+                this.createSplashParticles(point.x, point.z, 3);
+
                 gsap.to(this.waterMesh.material.uniforms.mouseStrength, {
                     value: 0,
-                    duration: 4.0,
-                    ease: "power4.out"
+                    duration: 3.0,
+                    ease: "power3.out"
                 });
             }
         });
@@ -574,28 +576,28 @@ class WorkingMindBlowingWater {
         }
     }
 
-    createSplashParticles(x, z, count = 10) {
-        // Create dramatic splash particles
+    createSplashParticles(x, z, count = 5) {
+        // Create subtle splash particles
         for (let i = 0; i < count; i++) {
             const particle = new THREE.Mesh(
-                new THREE.SphereGeometry(0.05, 6, 6),
+                new THREE.SphereGeometry(0.02, 4, 4),
                 new THREE.MeshBasicMaterial({
                     color: new THREE.Color(0x66ccff),
                     transparent: true,
-                    opacity: 0.8
+                    opacity: 0.5
                 })
             );
-            
+
             particle.position.set(x, 0, z);
             particle.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 4,
-                Math.random() * 3 + 2,
-                (Math.random() - 0.5) * 4
+                (Math.random() - 0.5) * 1.5,
+                Math.random() * 0.8 + 0.5,
+                (Math.random() - 0.5) * 1.5
             );
-            
+
             this.particles.push(particle);
             this.scene.add(particle);
-            
+
             // Remove particle after animation
             setTimeout(() => {
                 this.scene.remove(particle);
@@ -603,79 +605,25 @@ class WorkingMindBlowingWater {
                 if (index > -1) {
                     this.particles.splice(index, 1);
                 }
-            }, 2000);
+            }, 1500);
         }
     }
 
-    createDramaticSplash(x, z) {
-        console.log(`💦 Creating dramatic splash at (${x}, ${z})`);
-
-        // Create particles for dramatic effect - reduced from 30 to 20 for better performance
-        for (let i = 0; i < 20; i++) {
-            const particle = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1, 8, 8),
-                new THREE.MeshBasicMaterial({
-                    color: new THREE.Color(0x00ffff),
-                    transparent: true,
-                    opacity: 1.0
-                })
-            );
-            
-            particle.position.set(x, 0, z);
-            particle.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 8,
-                Math.random() * 5 + 3,
-                (Math.random() - 0.5) * 8
-            );
-            
-            this.particles.push(particle);
-            this.scene.add(particle);
-            
-            // Remove particle after animation
-            setTimeout(() => {
-                this.scene.remove(particle);
-                const index = this.particles.indexOf(particle);
-                if (index > -1) {
-                    this.particles.splice(index, 1);
-                }
-            }, 3000);
-        }
-    }
 
     createMorphingShape(x, z, strength) {
-        // Create a morphing shape effect
-        const morphShape = Math.random(); // Random shape
-        const morphRadius = 5 + strength * 3;
-        
-        this.waterMesh.material.uniforms.morphShape.value = morphShape;
-        this.waterMesh.material.uniforms.morphCenter.value = new THREE.Vector3(x, 0, z);
-        this.waterMesh.material.uniforms.morphRadius.value = morphRadius;
-        
-        // Animate the morphing shape
-        gsap.to(this.waterMesh.material.uniforms.morphRadius, {
-            value: 0,
-            duration: 2.0,
-            ease: "power3.out"
-        });
-    }
+        // Create a subtle morphing effect
+        const morphShape = Math.random();
+        const morphRadius = 3 + strength * 2;
 
-    createDramaticMorphingShape(x, z) {
-        console.log(`🔮 Creating dramatic morphing shape at (${x}, ${z})`);
-        
-        // Cycle through different shapes
-        const shapes = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]; // Sphere, Cube, Octahedron, Torus, Dodecahedron
-        const morphShape = shapes[Math.floor(Math.random() * shapes.length)];
-        const morphRadius = 8;
-        
         this.waterMesh.material.uniforms.morphShape.value = morphShape;
         this.waterMesh.material.uniforms.morphCenter.value = new THREE.Vector3(x, 0, z);
         this.waterMesh.material.uniforms.morphRadius.value = morphRadius;
-        
-        // Animate the dramatic morphing shape
+
+        // Smooth animation
         gsap.to(this.waterMesh.material.uniforms.morphRadius, {
             value: 0,
-            duration: 3.0,
-            ease: "power4.out"
+            duration: 2.5,
+            ease: "power2.out"
         });
     }
 
@@ -688,20 +636,22 @@ class WorkingMindBlowingWater {
         // Update water shader
         this.waterMesh.material.uniforms.time.value = this.time;
         
-        // Update particles with dramatic movement
+        // Smooth, realistic particle movement
         this.particles.forEach(particle => {
-            particle.position.add(particle.velocity.clone().multiplyScalar(0.004)); // Even slower particle movement
-            particle.velocity.y -= 0.03; // Reduced gravity
-            
-            // Bounce off water surface
+            particle.position.add(particle.velocity.clone().multiplyScalar(0.016));
+            particle.velocity.y -= 0.02; // Gentle gravity
+
+            // Gentle bounce off water surface
             if (particle.position.y < 0) {
                 particle.position.y = 0;
-                particle.velocity.y *= -0.5;
+                particle.velocity.y *= -0.3;
+                particle.velocity.x *= 0.9;
+                particle.velocity.z *= 0.9;
             }
-            
-            // Fade out particles
+
+            // Smooth fade out
             if (particle.material.opacity > 0) {
-                particle.material.opacity -= 0.003; // Slower fade
+                particle.material.opacity -= 0.01;
             }
         });
         
