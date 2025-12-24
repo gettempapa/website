@@ -1,50 +1,60 @@
-// State-of-the-art realistic water simulation
-class RealisticWater {
+// Photorealistic water simulation - Unreal Engine quality
+class PhotorealisticWater {
     constructor() {
         this.scene = null;
         this.camera = null;
         this.renderer = null;
         this.waterMesh = null;
+        this.reflectionTarget = null;
         this.clock = new THREE.Clock();
-        this.mouse = new THREE.Vector2();
-        this.raycaster = new THREE.Raycaster();
-        this.interactions = [];
         this.time = 0;
+        this.touches = new Map();
 
         this.init();
+        this.createEnvironment();
         this.createWater();
-        this.createLighting();
         this.setupInteraction();
         this.animate();
     }
 
     init() {
-        // Scene
+        // Scene with realistic sky
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x001122);
-        this.scene.fog = new THREE.FogExp2(0x001122, 0.002);
+        this.scene.background = new THREE.Color(0x87CEEB);
+        this.scene.fog = new THREE.Fog(0x87CEEB, 100, 300);
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(
-            60,
+            70,
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        this.camera.position.set(0, 25, 40);
+        this.camera.position.set(0, 15, 30);
         this.camera.lookAt(0, 0, 0);
 
-        // Renderer with advanced settings
-        this.renderer = new THREE.WebGLRenderer({
-            antialias: true,
+        // WebGL2 Renderer
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('webgl2', {
             alpha: true,
-            powerPreference: "high-performance"
+            antialias: true,
+            stencil: false,
+            depth: true,
+            powerPreference: 'high-performance'
         });
+
+        this.renderer = new THREE.WebGLRenderer({
+            canvas: canvas,
+            context: context,
+            antialias: true,
+            alpha: true
+        });
+
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.shadowMap.enabled = false; // Disable for performance
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.2;
+        this.renderer.toneMappingExposure = 1.5;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         this.renderer.domElement.setAttribute('data-engine', 'three.js');
         this.renderer.domElement.style.position = 'fixed';
@@ -53,211 +63,281 @@ class RealisticWater {
         this.renderer.domElement.style.zIndex = '1';
         this.renderer.domElement.style.pointerEvents = 'auto';
         document.body.appendChild(this.renderer.domElement);
+
+        // Create reflection render target
+        this.reflectionTarget = new THREE.WebGLRenderTarget(
+            window.innerWidth * 0.5,
+            window.innerHeight * 0.5,
+            {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat
+            }
+        );
+    }
+
+    createEnvironment() {
+        // Sun
+        const sun = new THREE.DirectionalLight(0xFFFFDD, 2.5);
+        sun.position.set(100, 100, 50);
+        this.scene.add(sun);
+
+        // Ambient
+        const ambient = new THREE.AmbientLight(0x87CEEB, 0.8);
+        this.scene.add(ambient);
+
+        // Sky dome for reflections
+        const skyGeo = new THREE.SphereGeometry(500, 32, 32);
+        const skyMat = new THREE.ShaderMaterial({
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 bottomColor;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition).y;
+                    vec3 color = mix(bottomColor, topColor, max(pow(max(h, 0.0), 0.5), 0.0));
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `,
+            uniforms: {
+                topColor: { value: new THREE.Color(0x0077ff) },
+                bottomColor: { value: new THREE.Color(0xffffff) }
+            },
+            side: THREE.BackSide
+        });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        this.scene.add(sky);
     }
 
     createWater() {
-        // Ultra high-resolution geometry for smooth surface
-        const geometry = new THREE.PlaneGeometry(200, 200, 256, 256);
+        // ULTRA high resolution - 512x512 for absolutely smooth surface
+        const geometry = new THREE.PlaneGeometry(300, 300, 512, 512);
         geometry.rotateX(-Math.PI / 2);
 
-        // Advanced water shader with realistic physics
+        // Photorealistic water shader
         const waterMaterial = new THREE.ShaderMaterial({
             vertexShader: `
+                precision highp float;
+
                 uniform float time;
-                uniform vec2 interactions[10];
-                uniform float interactionStrengths[10];
-                uniform float interactionTimes[10];
+                uniform sampler2D normalMap;
+                uniform vec3 interactions[20];
+                uniform float interactionData[20]; // strength + time packed
 
-                varying vec3 vPosition;
+                varying vec3 vWorldPos;
                 varying vec3 vNormal;
-                varying vec3 vViewPosition;
-                varying float vElevation;
+                varying vec3 vViewDir;
+                varying vec2 vUv;
+                varying float vWaveHeight;
 
-                // Improved Perlin noise
+                // High quality Simplex noise 3D
                 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-                vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-                vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+                vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+                vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
 
-                float snoise(vec2 v) {
-                    const vec4 C = vec4(0.211324865405187,
-                                        0.366025403784439,
-                                       -0.577350269189626,
-                                        0.024390243902439);
-                    vec2 i  = floor(v + dot(v, C.yy));
-                    vec2 x0 = v -   i + dot(i, C.xx);
-                    vec2 i1;
-                    i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-                    vec4 x12 = x0.xyxy + C.xxzz;
-                    x12.xy -= i1;
+                float snoise(vec3 v) {
+                    const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+                    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+                    vec3 i  = floor(v + dot(v, C.yyy));
+                    vec3 x0 = v - i + dot(i, C.xxx);
+                    vec3 g = step(x0.yzx, x0.xyz);
+                    vec3 l = 1.0 - g;
+                    vec3 i1 = min(g.xyz, l.zxy);
+                    vec3 i2 = max(g.xyz, l.zxy);
+                    vec3 x1 = x0 - i1 + C.xxx;
+                    vec3 x2 = x0 - i2 + C.yyy;
+                    vec3 x3 = x0 - D.yyy;
                     i = mod289(i);
-                    vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0))
-                        + i.x + vec3(0.0, i1.x, 1.0));
-                    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-                    m = m*m;
-                    m = m*m;
-                    vec3 x = 2.0 * fract(p * C.www) - 1.0;
-                    vec3 h = abs(x) - 0.5;
-                    vec3 ox = floor(x + 0.5);
-                    vec3 a0 = x - ox;
-                    m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-                    vec3 g;
-                    g.x  = a0.x  * x0.x  + h.x  * x0.y;
-                    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-                    return 130.0 * dot(m, g);
+                    vec4 p = permute(permute(permute(
+                        i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                        + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                        + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+                    float n_ = 0.142857142857;
+                    vec3 ns = n_ * D.wyz - D.xzx;
+                    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                    vec4 x_ = floor(j * ns.z);
+                    vec4 y_ = floor(j - 7.0 * x_);
+                    vec4 x = x_ *ns.x + ns.yyyy;
+                    vec4 y = y_ *ns.x + ns.yyyy;
+                    vec4 h = 1.0 - abs(x) - abs(y);
+                    vec4 b0 = vec4(x.xy, y.xy);
+                    vec4 b1 = vec4(x.zw, y.zw);
+                    vec4 s0 = floor(b0)*2.0 + 1.0;
+                    vec4 s1 = floor(b1)*2.0 + 1.0;
+                    vec4 sh = -step(h, vec4(0.0));
+                    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+                    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+                    vec3 p0 = vec3(a0.xy, h.x);
+                    vec3 p1 = vec3(a0.zw, h.y);
+                    vec3 p2 = vec3(a1.xy, h.z);
+                    vec3 p3 = vec3(a1.zw, h.w);
+                    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+                    p0 *= norm.x;
+                    p1 *= norm.y;
+                    p2 *= norm.z;
+                    p3 *= norm.w;
+                    vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                    m = m * m;
+                    return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
                 }
 
-                // Fractal Brownian Motion for natural waves
-                float fbm(vec2 p) {
+                // Ultra smooth FBM with 8 octaves
+                float fbm(vec3 p) {
                     float value = 0.0;
                     float amplitude = 0.5;
-                    float frequency = 1.0;
-                    for(int i = 0; i < 6; i++) {
-                        value += amplitude * snoise(p * frequency);
+                    for(int i = 0; i < 8; i++) {
+                        value += amplitude * snoise(p);
+                        p *= 2.0;
                         amplitude *= 0.5;
-                        frequency *= 2.0;
                     }
                     return value;
                 }
 
-                // Realistic Gerstner wave
-                vec3 gerstnerWave(vec2 pos, vec2 direction, float steepness, float wavelength, float time) {
-                    float k = 2.0 * 3.14159 / wavelength;
-                    float c = sqrt(9.8 / k);
-                    vec2 d = normalize(direction);
-                    float f = k * (dot(d, pos) - c * time);
-                    float a = steepness / k;
-
-                    return vec3(
-                        d.x * (a * cos(f)),
-                        a * sin(f),
-                        d.y * (a * cos(f))
-                    );
-                }
-
                 void main() {
-                    vPosition = position;
+                    vUv = uv;
                     vec3 pos = position;
 
-                    // Multiple Gerstner waves for realistic ocean movement
-                    vec3 wave1 = gerstnerWave(position.xz, vec2(1.0, 0.3), 0.15, 20.0, time * 0.3);
-                    vec3 wave2 = gerstnerWave(position.xz, vec2(-0.5, 1.0), 0.1, 15.0, time * 0.4);
-                    vec3 wave3 = gerstnerWave(position.xz, vec2(0.8, -0.6), 0.08, 25.0, time * 0.25);
+                    // Multi-layered ultra-smooth waves
+                    vec3 p1 = vec3(position.x * 0.02, position.z * 0.02, time * 0.1);
+                    vec3 p2 = vec3(position.x * 0.05, position.z * 0.05, time * 0.15);
+                    vec3 p3 = vec3(position.x * 0.1, position.z * 0.1, time * 0.2);
 
-                    // Combine Gerstner waves
-                    pos += (wave1 + wave2 + wave3) * 0.3;
+                    float wave = fbm(p1) * 0.5 + fbm(p2) * 0.25 + fbm(p3) * 0.15;
+                    pos.y += wave * 0.8;
 
-                    // Add Perlin noise for small details
-                    float noise1 = fbm(position.xz * 0.05 + time * 0.05);
-                    float noise2 = fbm(position.xz * 0.1 + time * 0.08);
-                    pos.y += (noise1 * 0.3 + noise2 * 0.15);
+                    // Smooth user interactions
+                    for(int i = 0; i < 20; i++) {
+                        vec3 inter = interactions[i];
+                        if(inter.z > 0.0) {
+                            float dist = distance(position.xz, inter.xy);
+                            float age = time - inter.z;
 
-                    // User interactions with realistic wave propagation
-                    for(int i = 0; i < 10; i++) {
-                        if(interactionStrengths[i] > 0.0) {
-                            float dist = distance(position.xz, interactions[i]);
-                            float age = time - interactionTimes[i];
+                            // Physics-based wave
+                            float waveRadius = age * 4.0;
+                            float wave = sin((dist - waveRadius) * 1.5) * exp(-dist * 0.05);
+                            wave *= exp(-age * 0.6);
+                            wave *= interactionData[i];
 
-                            // Wave equation: displacement decreases with distance and time
-                            float waveSpeed = 3.0;
-                            float waveRadius = age * waveSpeed;
-
-                            // Create expanding ring with realistic falloff
-                            float wave = sin((dist - waveRadius) * 2.0) * exp(-dist * 0.08);
-                            wave *= exp(-age * 0.8); // Decay over time
-                            wave *= interactionStrengths[i];
-
-                            // Secondary ripples
-                            float ripple = sin((dist - waveRadius) * 6.0) * 0.3 * exp(-dist * 0.15);
-                            ripple *= exp(-age * 1.2);
-                            ripple *= interactionStrengths[i];
-
-                            pos.y += (wave + ripple) * 2.0;
+                            pos.y += wave * 1.5;
                         }
                     }
 
-                    // Calculate smooth normal using neighboring vertices
-                    float offset = 0.1;
-                    vec3 posRight = pos + vec3(offset, 0.0, 0.0);
-                    vec3 posForward = pos + vec3(0.0, 0.0, offset);
+                    vWaveHeight = pos.y;
 
-                    // Sample elevation at neighboring points
-                    posRight.y += fbm((position.xz + vec2(offset, 0.0)) * 0.05 + time * 0.05) * 0.3;
-                    posForward.y += fbm((position.xz + vec2(0.0, offset)) * 0.05 + time * 0.05) * 0.3;
+                    // Ultra-smooth normal calculation
+                    float eps = 0.5;
+                    vec3 p = position;
+                    float h = pos.y;
+                    float hx = h + fbm(vec3((p.x + eps) * 0.02, p.z * 0.02, time * 0.1)) * 0.5;
+                    float hz = h + fbm(vec3(p.x * 0.02, (p.z + eps) * 0.02, time * 0.1)) * 0.5;
 
-                    vec3 tangent = normalize(posRight - pos);
-                    vec3 binormal = normalize(posForward - pos);
-                    vec3 normal = normalize(cross(binormal, tangent));
+                    vec3 dx = vec3(eps, hx - h, 0.0);
+                    vec3 dz = vec3(0.0, hz - h, eps);
+                    vec3 normal = normalize(cross(dz, dx));
 
                     vNormal = normalize(normalMatrix * normal);
-                    vElevation = pos.y;
 
-                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                    vViewPosition = -mvPosition.xyz;
-                    gl_Position = projectionMatrix * mvPosition;
+                    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+                    vWorldPos = worldPos.xyz;
+                    vViewDir = normalize(cameraPosition - worldPos.xyz);
+
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
                 }
             `,
             fragmentShader: `
+                precision highp float;
+
                 uniform float time;
                 uniform vec3 cameraPosition;
+                uniform samplerCube envMap;
 
-                varying vec3 vPosition;
+                varying vec3 vWorldPos;
                 varying vec3 vNormal;
-                varying vec3 vViewPosition;
-                varying float vElevation;
+                varying vec3 vViewDir;
+                varying vec2 vUv;
+                varying float vWaveHeight;
 
                 void main() {
                     vec3 normal = normalize(vNormal);
-                    vec3 viewDir = normalize(vViewPosition);
+                    vec3 viewDir = normalize(vViewDir);
 
-                    // Realistic water colors (deep ocean)
-                    vec3 deepWater = vec3(0.0, 0.1, 0.2);
-                    vec3 shallowWater = vec3(0.0, 0.3, 0.5);
-                    vec3 foam = vec3(0.7, 0.9, 1.0);
+                    // Photorealistic water colors
+                    vec3 waterDeep = vec3(0.0, 0.05, 0.15);
+                    vec3 waterShallow = vec3(0.0, 0.2, 0.3);
+                    vec3 waterSurface = vec3(0.0, 0.35, 0.5);
 
-                    // Depth-based color
-                    float depth = smoothstep(-50.0, 50.0, length(vPosition.xz));
-                    vec3 waterColor = mix(shallowWater, deepWater, depth * 0.6);
+                    // Depth gradient
+                    float centerDist = length(vWorldPos.xz) / 150.0;
+                    vec3 baseColor = mix(waterSurface, mix(waterShallow, waterDeep, centerDist), centerDist);
 
-                    // Add foam at wave peaks
-                    float foamFactor = smoothstep(0.3, 0.8, vElevation);
-                    waterColor = mix(waterColor, foam, foamFactor * 0.3);
+                    // Ultra-realistic Fresnel
+                    float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), 4.0);
 
-                    // Realistic Fresnel effect
-                    float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), 3.0);
-                    vec3 skyReflection = vec3(0.5, 0.7, 1.0);
-                    vec3 color = mix(waterColor, skyReflection, fresnel * 0.7);
+                    // Sky reflection
+                    vec3 reflectDir = reflect(-viewDir, normal);
+                    vec3 skyColor = mix(
+                        vec3(0.5, 0.7, 1.0),
+                        vec3(0.05, 0.2, 0.4),
+                        reflectDir.y * 0.5 + 0.5
+                    );
 
-                    // Subsurface scattering approximation
-                    float scatter = pow(max(dot(viewDir, -normal), 0.0), 2.0);
-                    color += vec3(0.0, 0.2, 0.3) * scatter * 0.5;
+                    // Combine water color with reflection
+                    vec3 color = mix(baseColor, skyColor, fresnel * 0.85);
 
-                    // Dynamic caustics
-                    float caustic = sin(vPosition.x * 5.0 + time * 0.5) *
-                                   cos(vPosition.z * 5.0 - time * 0.3) *
-                                   sin((vPosition.x + vPosition.z) * 3.0 + time * 0.7);
-                    caustic = smoothstep(0.3, 1.0, (caustic + 1.0) * 0.5);
-                    color += vec3(0.3, 0.6, 0.8) * caustic * 0.15;
+                    // Subsurface scattering
+                    vec3 sunDir = normalize(vec3(1.0, 1.0, 0.5));
+                    float scatter = pow(max(dot(-viewDir, sunDir), 0.0), 3.0);
+                    color += vec3(0.1, 0.3, 0.4) * scatter * 0.4;
 
-                    // Sparkles from sunlight
-                    vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-                    vec3 halfDir = normalize(lightDir + viewDir);
-                    float spec = pow(max(dot(normal, halfDir), 0.0), 128.0);
-                    color += vec3(1.0) * spec * 0.8;
+                    // Chromatic caustics (ultra smooth)
+                    float causticR = sin(vWorldPos.x * 3.0 + time * 0.4) * cos(vWorldPos.z * 2.5 - time * 0.3);
+                    float causticG = sin(vWorldPos.x * 2.7 - time * 0.5) * cos(vWorldPos.z * 3.2 + time * 0.25);
+                    float causticB = sin(vWorldPos.x * 3.3 + time * 0.35) * cos(vWorldPos.z * 2.8 - time * 0.4);
 
-                    // Atmospheric perspective
-                    float dist = length(vViewPosition);
-                    float fog = smoothstep(50.0, 150.0, dist);
-                    color = mix(color, vec3(0.5, 0.7, 0.9), fog * 0.3);
+                    causticR = smoothstep(0.2, 1.0, (causticR + 1.0) * 0.5);
+                    causticG = smoothstep(0.2, 1.0, (causticG + 1.0) * 0.5);
+                    causticB = smoothstep(0.2, 1.0, (causticB + 1.0) * 0.5);
 
-                    gl_FragColor = vec4(color, 0.95);
+                    vec3 caustics = vec3(causticR * 0.1, causticG * 0.12, causticB * 0.15);
+                    color += caustics;
+
+                    // Ultra-sharp specular (sun reflection)
+                    vec3 halfDir = normalize(sunDir + viewDir);
+                    float spec = pow(max(dot(normal, halfDir), 0.0), 256.0);
+                    color += vec3(1.0, 0.95, 0.9) * spec * 1.5;
+
+                    // Foam at peaks
+                    float foam = smoothstep(0.4, 0.9, vWaveHeight);
+                    color = mix(color, vec3(0.9, 0.95, 1.0), foam * 0.4);
+
+                    // Atmospheric scattering
+                    float viewDist = length(vWorldPos - cameraPosition);
+                    float fog = 1.0 - exp(-viewDist * 0.003);
+                    color = mix(color, vec3(0.7, 0.85, 1.0), fog * 0.3);
+
+                    // HDR tone mapping
+                    color = color / (color + vec3(1.0));
+                    color = pow(color, vec3(1.0 / 2.2));
+
+                    gl_FragColor = vec4(color, 0.98);
                 }
             `,
             uniforms: {
                 time: { value: 0 },
                 cameraPosition: { value: this.camera.position },
-                interactions: { value: Array(10).fill(new THREE.Vector2(9999, 9999)) },
-                interactionStrengths: { value: Array(10).fill(0) },
-                interactionTimes: { value: Array(10).fill(0) }
+                normalMap: { value: null },
+                envMap: { value: null },
+                interactions: { value: Array(20).fill(new THREE.Vector3(9999, 9999, 0)) },
+                interactionData: { value: Array(20).fill(0) }
             },
             transparent: true,
             side: THREE.DoubleSide
@@ -267,63 +347,35 @@ class RealisticWater {
         this.scene.add(this.waterMesh);
     }
 
-    createLighting() {
-        // Ambient light
-        const ambient = new THREE.AmbientLight(0x445566, 0.5);
-        this.scene.add(ambient);
-
-        // Directional light (sun)
-        const sun = new THREE.DirectionalLight(0xffffee, 1.5);
-        sun.position.set(50, 80, 30);
-        this.scene.add(sun);
-
-        // Rim light
-        const rim = new THREE.DirectionalLight(0x4466aa, 0.8);
-        rim.position.set(-30, 20, -50);
-        this.scene.add(rim);
-    }
-
     setupInteraction() {
-        const touches = new Map();
+        let interactionIndex = 0;
 
-        const addInteraction = (x, y, strength) => {
-            // Convert screen to world coordinates
-            this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+        const addWave = (x, y, strength) => {
+            const mouse = new THREE.Vector2(x, y);
+            this.raycaster.setFromCamera(mouse, this.camera);
             const intersects = this.raycaster.intersectObject(this.waterMesh);
 
             if (intersects.length > 0) {
                 const point = intersects[0].point;
-
-                // Add new interaction
-                this.interactions.push({
-                    position: new THREE.Vector2(point.x, point.z),
-                    strength: strength,
-                    time: this.time
-                });
-
-                // Keep only recent interactions
-                if (this.interactions.length > 10) {
-                    this.interactions.shift();
-                }
-
-                // Update shader uniforms
                 const uniforms = this.waterMesh.material.uniforms;
-                this.interactions.forEach((interaction, i) => {
-                    uniforms.interactions.value[i] = interaction.position;
-                    uniforms.interactionStrengths.value[i] = interaction.strength;
-                    uniforms.interactionTimes.value[i] = interaction.time;
-                });
+
+                uniforms.interactions.value[interactionIndex].set(point.x, point.z, this.time);
+                uniforms.interactionData.value[interactionIndex] = strength;
+
+                interactionIndex = (interactionIndex + 1) % 20;
             }
         };
 
-        // Touch events
+        this.raycaster = new THREE.Raycaster();
+
+        // Touch
         document.addEventListener('touchstart', (e) => {
             e.preventDefault();
             Array.from(e.touches).forEach(touch => {
                 const x = (touch.clientX / window.innerWidth) * 2 - 1;
                 const y = -(touch.clientY / window.innerHeight) * 2 + 1;
-                touches.set(touch.identifier, { x, y, time: Date.now() });
-                addInteraction(x, y, 0.8);
+                this.touches.set(touch.identifier, { x, y, time: Date.now() });
+                addWave(x, y, 1.0);
             });
         }, { passive: false });
 
@@ -332,16 +384,14 @@ class RealisticWater {
             Array.from(e.touches).forEach(touch => {
                 const x = (touch.clientX / window.innerWidth) * 2 - 1;
                 const y = -(touch.clientY / window.innerHeight) * 2 + 1;
-                const last = touches.get(touch.identifier);
+                const last = this.touches.get(touch.identifier);
 
-                if (last) {
+                if (last && Date.now() - last.time > 30) {
                     const dx = x - last.x;
                     const dy = y - last.y;
                     const speed = Math.sqrt(dx * dx + dy * dy);
-                    const strength = Math.min(0.5 + speed * 3, 1.2);
-
-                    addInteraction(x, y, strength);
-                    touches.set(touch.identifier, { x, y, time: Date.now() });
+                    addWave(x, y, Math.min(0.6 + speed * 4, 1.5));
+                    this.touches.set(touch.identifier, { x, y, time: Date.now() });
                 }
             });
         }, { passive: false });
@@ -349,39 +399,34 @@ class RealisticWater {
         document.addEventListener('touchend', (e) => {
             e.preventDefault();
             Array.from(e.changedTouches).forEach(touch => {
-                touches.delete(touch.identifier);
+                this.touches.delete(touch.identifier);
             });
         }, { passive: false });
 
-        // Mouse events
+        // Mouse
         let lastMouse = { x: 0, y: 0, time: 0 };
-
         document.addEventListener('mousemove', (e) => {
             const x = (e.clientX / window.innerWidth) * 2 - 1;
             const y = -(e.clientY / window.innerHeight) * 2 + 1;
             const now = Date.now();
 
-            if (now - lastMouse.time > 50) {
+            if (now - lastMouse.time > 30) {
                 const dx = x - lastMouse.x;
                 const dy = y - lastMouse.y;
                 const speed = Math.sqrt(dx * dx + dy * dy);
-
-                if (speed > 0.01) {
-                    const strength = Math.min(0.3 + speed * 2, 0.9);
-                    addInteraction(x, y, strength);
+                if (speed > 0.005) {
+                    addWave(x, y, Math.min(0.4 + speed * 3, 1.0));
                 }
-
                 lastMouse = { x, y, time: now };
             }
         });
 
-        document.addEventListener('mousedown', (e) => {
+        document.addEventListener('click', (e) => {
             const x = (e.clientX / window.innerWidth) * 2 - 1;
             const y = -(e.clientY / window.innerHeight) * 2 + 1;
-            addInteraction(x, y, 1.0);
+            addWave(x, y, 1.2);
         });
 
-        // Window resize
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
@@ -392,21 +437,13 @@ class RealisticWater {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
 
-        const delta = this.clock.getDelta();
-        this.time += delta;
-
-        // Update shader time
+        this.time += this.clock.getDelta();
         this.waterMesh.material.uniforms.time.value = this.time;
 
-        // Gentle camera movement
-        this.camera.position.x = Math.sin(this.time * 0.05) * 3;
-        this.camera.position.y = 25 + Math.sin(this.time * 0.03) * 2;
+        // Smooth camera drift
+        this.camera.position.x = Math.sin(this.time * 0.03) * 4;
+        this.camera.position.y = 15 + Math.sin(this.time * 0.02) * 1.5;
         this.camera.lookAt(0, 0, 0);
-
-        // Clean up old interactions
-        this.interactions = this.interactions.filter(i =>
-            this.time - i.time < 5.0
-        );
 
         this.renderer.render(this.scene, this.camera);
     }
@@ -414,7 +451,7 @@ class RealisticWater {
 
 // Initialize
 if (typeof THREE !== 'undefined') {
-    new RealisticWater();
+    new PhotorealisticWater();
 } else {
-    setTimeout(() => new RealisticWater(), 100);
+    setTimeout(() => new PhotorealisticWater(), 100);
 }
