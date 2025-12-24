@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Round Robin Contact Assignment</title>
+    <link rel="stylesheet" href="roundrobin.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Round Robin Contact Manager</h1>
+            <nav class="nav">
+                <a href="index.html" class="nav-link">Back to Home</a>
+            </nav>
+        </header>
+
+        <!-- Main Navigation -->
+        <div class="main-nav">
+            <button class="tab-btn active" data-tab="contacts">Contacts</button>
+            <button class="tab-btn" data-tab="groups">Round Robin Groups</button>
+            <button class="tab-btn" data-tab="workflows">Workflows</button>
+        </div>
+
+        <!-- Contacts Tab -->
+        <div id="contacts-tab" class="tab-content active">
+            <div class="section-header">
+                <h2>Contacts</h2>
+                <button id="add-contact-btn" class="btn btn-primary">+ Create Contact</button>
+            </div>
+
+            <div class="contacts-list">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>First Name</th>
+                            <th>Last Name</th>
+                            <th>Email</th>
+                            <th>Company</th>
+                            <th>Owner</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contacts-tbody">
+                        <!-- Contacts will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Round Robin Groups Tab -->
+        <div id="groups-tab" class="tab-content">
+            <div class="section-header">
+                <h2>Round Robin Groups</h2>
+                <button id="add-group-btn" class="btn btn-primary">+ Create Group</button>
+            </div>
+
+            <div id="groups-list" class="groups-grid">
+                <!-- Groups will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Workflows Tab -->
+        <div id="workflows-tab" class="tab-content">
+            <div class="section-header">
+                <h2>Workflows</h2>
+                <button id="add-workflow-btn" class="btn btn-primary">+ Create Workflow</button>
+            </div>
+
+            <div id="workflows-list" class="workflows-list">
+                <!-- Workflows will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Create Contact -->
+    <div id="contact-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Contact</h3>
+                <span class="close" data-modal="contact-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="contact-form">
+                    <div class="form-group">
+                        <label for="first-name">First Name *</label>
+                        <input type="text" id="first-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="last-name">Last Name *</label>
+                        <input type="text" id="last-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="company">Company</label>
+                        <input type="text" id="company">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="contact-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Contact</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Create Group -->
+    <div id="group-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Round Robin Group</h3>
+                <span class="close" data-modal="group-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="group-form">
+                    <div class="form-group">
+                        <label for="group-name">Group Name *</label>
+                        <input type="text" id="group-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Sales Reps *</label>
+                        <div id="reps-selection" class="reps-selection">
+                            <!-- Sales reps checkboxes will be inserted here -->
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="group-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Group</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: View Group Details -->
+    <div id="group-details-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="group-details-title">Group Details</h3>
+                <span class="close" data-modal="group-details-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="group-details-container">
+                    <div class="group-members-section">
+                        <h4>Members & Weights</h4>
+                        <div id="group-members-list" class="group-members-list">
+                            <!-- Members will be inserted here -->
+                        </div>
+                    </div>
+                    <div class="group-stats-section">
+                        <h4>Assigned Contacts</h4>
+                        <div id="group-contacts-list" class="group-contacts-list">
+                            <!-- Contacts will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: View Rep Contacts -->
+    <div id="rep-contacts-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="rep-contacts-title">Rep Contacts</h3>
+                <span class="close" data-modal="rep-contacts-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>First Name</th>
+                            <th>Last Name</th>
+                            <th>Email</th>
+                            <th>Company</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rep-contacts-tbody">
+                        <!-- Rep contacts will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Create Workflow -->
+    <div id="workflow-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Create Workflow</h3>
+                <span class="close" data-modal="workflow-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="workflow-form">
+                    <div class="form-group">
+                        <label for="workflow-name">Workflow Name *</label>
+                        <input type="text" id="workflow-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workflow-group">Assign to Group *</label>
+                        <select id="workflow-group" required>
+                            <option value="">Select a group...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Conditions</label>
+                        <div id="conditions-container">
+                            <!-- Conditions will be added here -->
+                        </div>
+                        <button type="button" id="add-condition-btn" class="btn btn-secondary btn-sm">+ Add Condition</button>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="workflow-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Workflow</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="roundrobin.js"></script>
+</body>
+</html>
