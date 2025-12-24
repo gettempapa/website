@@ -73,7 +73,6 @@ class RoundRobinApp {
         document.getElementById('add-contact-btn').addEventListener('click', () => this.openModal('contact-modal'));
         document.getElementById('add-group-btn').addEventListener('click', () => this.openModal('group-modal'));
         document.getElementById('add-workflow-btn').addEventListener('click', () => this.openModal('workflow-modal'));
-        document.getElementById('assign-workflow-btn').addEventListener('click', () => this.openAssignWorkflowModal());
 
         // Form submissions
         document.getElementById('contact-form').addEventListener('submit', (e) => this.handleCreateContact(e));
