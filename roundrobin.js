@@ -6,9 +6,18 @@ class RoundRobinApp {
         this.groups = this.loadFromStorage('groups') || [];
         this.workflows = this.loadFromStorage('workflows') || [];
         this.salesReps = this.generateSalesReps();
+        this.currentUser = 'System'; // In a real app, this would be the logged-in user
+
+        // Filter state
+        this.filterState = {
+            search: '',
+            owner: '',
+            company: ''
+        };
 
         // Initialize UI
         this.initEventListeners();
+        this.populateFilterDropdowns();
         this.renderContacts();
         this.renderGroups();
         this.renderWorkflows();
@@ -72,8 +81,88 @@ class RoundRobinApp {
         // Add condition button
         document.getElementById('add-condition-btn').addEventListener('click', () => this.addCondition());
 
+        // Filter controls
+        document.getElementById('contact-search').addEventListener('input', (e) => {
+            this.filterState.search = e.target.value;
+            this.renderContacts();
+        });
+
+        document.getElementById('filter-owner').addEventListener('change', (e) => {
+            this.filterState.owner = e.target.value;
+            this.renderContacts();
+        });
+
+        document.getElementById('filter-company').addEventListener('change', (e) => {
+            this.filterState.company = e.target.value;
+            this.renderContacts();
+        });
+
+        document.getElementById('clear-filters-btn').addEventListener('click', () => {
+            this.clearFilters();
+        });
+
         // Render sales reps in group modal
         this.renderSalesRepsSelection();
+    }
+
+    // Filter Methods
+    clearFilters() {
+        this.filterState = {
+            search: '',
+            owner: '',
+            company: ''
+        };
+        document.getElementById('contact-search').value = '';
+        document.getElementById('filter-owner').value = '';
+        document.getElementById('filter-company').value = '';
+        this.renderContacts();
+    }
+
+    populateFilterDropdowns() {
+        // Populate owner filter
+        const ownerSelect = document.getElementById('filter-owner');
+        const owners = [...new Set(this.contacts.map(c => c.owner).filter(Boolean))];
+
+        ownerSelect.innerHTML = '<option value="">All Owners</option>' +
+            owners.map(ownerId => {
+                const rep = this.salesReps.find(r => r.id === ownerId);
+                return `<option value="${ownerId}">${rep ? rep.name : 'Unknown'}</option>`;
+            }).join('');
+
+        // Populate company filter
+        const companySelect = document.getElementById('filter-company');
+        const companies = [...new Set(this.contacts.map(c => c.company).filter(Boolean))];
+
+        companySelect.innerHTML = '<option value="">All Companies</option>' +
+            companies.map(company => `<option value="${company}">${company}</option>`).join('');
+    }
+
+    filterContacts() {
+        return this.contacts.filter(contact => {
+            // Search filter
+            if (this.filterState.search) {
+                const searchLower = this.filterState.search.toLowerCase();
+                const matchesSearch =
+                    contact.firstName.toLowerCase().includes(searchLower) ||
+                    contact.lastName.toLowerCase().includes(searchLower) ||
+                    contact.email.toLowerCase().includes(searchLower) ||
+                    (contact.company && contact.company.toLowerCase().includes(searchLower));
+
+                if (!matchesSearch) return false;
+            }
+
+            // Owner filter
+            if (this.filterState.owner && contact.owner !== this.filterState.owner) {
+                return false;
+            }
+
+            // Company filter
+            if (this.filterState.company && contact.company !== this.filterState.company) {
+                return false;
+            }
+
+            return true;
+        });
     }
 
     // Tab Switching
@@ -122,7 +211,11 @@ class RoundRobinApp {
             email: document.getElementById('email').value,
             company: document.getElementById('company').value || 'N/A',
             owner: null,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            createdBy: this.currentUser,
+            modifiedAt: new Date().toISOString(),
+            modifiedBy: this.currentUser,
+            workflowHistory: []
         };
 
         // Assign contact to owner via workflows
@@ -130,6 +223,7 @@ class RoundRobinApp {
 
         this.contacts.push(contact);
         this.saveToStorage('contacts', this.contacts);
+        this.populateFilterDropdowns();
         this.renderContacts();
         this.closeModal('contact-modal');
     }
@@ -144,12 +238,31 @@ class RoundRobinApp {
             const group = this.groups.find(g => g.id === matchingWorkflow.groupId);
             if (group) {
                 contact.owner = this.getNextOwnerInGroup(group);
+
+                // Track workflow execution
+                contact.workflowHistory.push({
+                    workflowId: matchingWorkflow.id,
+                    workflowName: matchingWorkflow.name,
+                    groupId: group.id,
+                    groupName: group.name,
+                    assignedTo: contact.owner,
+                    executedAt: new Date().toISOString()
+                });
             }
         } else {
             // If no workflow matches, use default group if exists
             const defaultGroup = this.groups.find(g => g.name === 'Default');
             if (defaultGroup) {
                 contact.owner = this.getNextOwnerInGroup(defaultGroup);
+
+                contact.workflowHistory.push({
+                    workflowId: 'default',
+                    workflowName: 'Default Assignment',
+                    groupId: defaultGroup.id,
+                    groupName: defaultGroup.name,
+                    assignedTo: contact.owner,
+                    executedAt: new Date().toISOString()
+                });
             }
         }
     }
@@ -209,12 +322,17 @@ class RoundRobinApp {
 
     renderContacts() {
         const tbody = document.getElementById('contacts-tbody');
+        const filteredContacts = this.filterContacts();
 
-        if (this.contacts.length === 0) {
+        if (filteredContacts.length === 0) {
+            const message = this.contacts.length === 0
+                ? 'No contacts yet. Click "Create Contact" to get started.'
+                : 'No contacts match your filters.';
+
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" class="empty-state">
-                        <div class="empty-state-text">No contacts yet. Click "Create Contact" to get started.</div>
+                        <div class="empty-state-text">${message}</div>
                     </td>
                 </tr>
             `;
@@ -222,7 +340,7 @@ class RoundRobinApp {
         }
 
         // Sort by most recent first
-        const sortedContacts = [...this.contacts].sort((a, b) =>
+        const sortedContacts = [...filteredContacts].sort((a, b) =>
             new Date(b.createdAt) - new Date(a.createdAt)
         );
 
@@ -230,18 +348,83 @@ class RoundRobinApp {
             const owner = this.salesReps.find(rep => rep.id === contact.owner);
             const ownerName = owner ? owner.name : 'Unassigned';
             const createdDate = new Date(contact.createdAt).toLocaleDateString();
+            const modifiedDate = contact.modifiedAt ? new Date(contact.modifiedAt).toLocaleDateString() : 'N/A';
+            const fullName = `${contact.firstName} ${contact.lastName}`;
 
             return `
                 <tr>
-                    <td>${contact.firstName}</td>
-                    <td>${contact.lastName}</td>
+                    <td><span class="clickable-name" onclick="app.showContactDetails('${contact.id}')">${fullName}</span></td>
                     <td>${contact.email}</td>
                     <td>${contact.company}</td>
                     <td>${ownerName}</td>
                     <td>${createdDate}</td>
+                    <td>${modifiedDate}</td>
                 </tr>
             `;
         }).join('');
+    }
+
+    showContactDetails(contactId) {
+        const contact = this.contacts.find(c => c.id === contactId);
+        if (!contact) return;
+
+        // Populate contact details
+        document.getElementById('contact-details-name').textContent = `${contact.firstName} ${contact.lastName}`;
+        document.getElementById('detail-first-name').textContent = contact.firstName;
+        document.getElementById('detail-last-name').textContent = contact.lastName;
+        document.getElementById('detail-email').textContent = contact.email;
+        document.getElementById('detail-company').textContent = contact.company;
+
+        const owner = this.salesReps.find(r => r.id === contact.owner);
+        document.getElementById('detail-owner').textContent = owner ? owner.name : 'Unassigned';
+
+        // Format dates
+        const createdDate = new Date(contact.createdAt).toLocaleString();
+        const modifiedDate = contact.modifiedAt ? new Date(contact.modifiedAt).toLocaleString() : 'N/A';
+
+        document.getElementById('detail-created-at').textContent = createdDate;
+        document.getElementById('detail-created-by').textContent = contact.createdBy || 'System';
+        document.getElementById('detail-modified-at').textContent = modifiedDate;
+        document.getElementById('detail-modified-by').textContent = contact.modifiedBy || 'N/A';
+
+        // Render workflow history
+        const workflowHistoryContainer = document.getElementById('detail-workflow-history');
+
+        if (!contact.workflowHistory || contact.workflowHistory.length === 0) {
+            workflowHistoryContainer.innerHTML = `
+                <div style="text-align: center; color: #718096; padding: 20px;">
+                    No workflow has been executed on this contact yet.
+                </div>
+            `;
+        } else {
+            // Sort by most recent first
+            const sortedHistory = [...contact.workflowHistory].sort((a, b) =>
+                new Date(b.executedAt) - new Date(a.executedAt)
+            );
+
+            workflowHistoryContainer.innerHTML = sortedHistory.map((history, index) => {
+                const executedDate = new Date(history.executedAt).toLocaleString();
+                const assignedRep = this.salesReps.find(r => r.id === history.assignedTo);
+                const assignedName = assignedRep ? assignedRep.name : 'Unknown';
+                const isMostRecent = index === 0;
+
+                return `
+                    <div class="workflow-history-item" style="${isMostRecent ? 'border-left-color: #48bb78;' : ''}">
+                        <div class="workflow-history-item-header">
+                            <span class="workflow-history-item-name">
+                                ${history.workflowName} ${isMostRecent ? '(Most Recent)' : ''}
+                            </span>
+                            <span class="workflow-history-item-date">${executedDate}</span>
+                        </div>
+                        <div class="workflow-history-item-group">
+                            Group: ${history.groupName} → Assigned to: ${assignedName}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        this.openModal('contact-details-modal');
     }
 
     // Group Management
